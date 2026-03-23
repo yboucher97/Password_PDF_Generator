@@ -45,6 +45,7 @@ The installer will:
 - create and enable `password-pdf-generator.service`
 - optionally configure Caddy for your public hostname
 - optionally enable WorkDrive upload settings
+- tell you at the end if `/etc/password-pdf-generator.env` still needs any secrets filled in
 
 ## Non-Interactive Install
 

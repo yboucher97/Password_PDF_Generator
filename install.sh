@@ -314,6 +314,31 @@ write_paths_file() {
   fi
 }
 
+report_secret_follow_up() {
+  local missing=()
+
+  if [[ -z "${API_KEY:-}" ]]; then
+    missing+=("WIFI_PDF_API_KEY")
+  fi
+
+  if [[ "$ENABLE_WORKDRIVE" == "true" ]]; then
+    [[ -z "${ZOHO_WORKDRIVE_CLIENT_ID:-}" ]] && missing+=("ZOHO_WORKDRIVE_CLIENT_ID")
+    [[ -z "${ZOHO_WORKDRIVE_CLIENT_SECRET:-}" ]] && missing+=("ZOHO_WORKDRIVE_CLIENT_SECRET")
+    [[ -z "${ZOHO_WORKDRIVE_REFRESH_TOKEN:-}" ]] && missing+=("ZOHO_WORKDRIVE_REFRESH_TOKEN")
+  fi
+
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    log "Open ${ENV_FILE} and fill in these values:"
+    for key in "${missing[@]}"; do
+      log "  - ${key}"
+    done
+    log "Then restart the service:"
+    log "  sudo systemctl restart ${SERVICE_NAME}"
+  else
+    log "Secrets file is populated: ${ENV_FILE}"
+  fi
+}
+
 write_service_file() {
   local service_file="/etc/systemd/system/${SERVICE_NAME}.service"
   cat >"$service_file" <<EOF
@@ -416,6 +441,7 @@ main() {
   log "Secrets file: ${ENV_FILE}"
   log "Service: ${SERVICE_NAME}"
   log "Path inventory: ${PATHS_FILE}"
+  report_secret_follow_up
   if [[ -n "$HOST" ]]; then
     log "Public health check: https://${HOST}/health"
   else
