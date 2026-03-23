@@ -43,8 +43,8 @@ The installer will:
 - write secrets to `/etc/password-pdf-generator.env`
 - write an install-path inventory text file into the invoking user's home directory
 - create and enable `password-pdf-generator.service`
-- optionally configure Caddy for your public hostname
-- optionally enable WorkDrive upload settings
+- require a public hostname and configure Caddy automatically
+- enable WorkDrive upload by default
 - tell you at the end if `/etc/password-pdf-generator.env` still needs any secrets filled in
 
 ## Non-Interactive Install
@@ -54,7 +54,6 @@ You can also pass values in one command:
 ```bash
 sudo PASSWORD_PDF_HOST=wifi-api.example.com \
 PASSWORD_PDF_API_KEY=replace-with-long-random-secret \
-PASSWORD_PDF_ENABLE_WORKDRIVE=false \
 bash <(curl -fsSL https://raw.githubusercontent.com/yboucher97/Password_PDF_Generator/main/install.sh)
 ```
 
@@ -83,6 +82,21 @@ sudo /opt/password-pdf-generator/update.sh
 ```
 
 That pulls the latest GitHub code, reinstalls Python dependencies if needed, preserves `/etc/password-pdf-generator/brand_settings.json` and `/etc/password-pdf-generator.env`, and restarts the service.
+
+## Firewall Behavior
+
+The installer configures `ufw` automatically:
+
+- allows `OpenSSH`
+- allows `80/tcp`
+- allows `443/tcp`
+- enables `ufw`
+
+What it does not do automatically:
+
+- router or CHR port forwarding
+- public DNS records
+- cloud firewall rules outside the VM
 
 ## Installed Runtime Paths
 

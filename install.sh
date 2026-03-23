@@ -411,10 +411,17 @@ main() {
   require_root
   initialize_context
 
-  prompt HOST "Public hostname for Caddy/HTTPS (leave blank to skip Caddy)" false "$HOST"
+  prompt HOST "Public hostname for Caddy/HTTPS" false "$HOST"
   prompt API_KEY "Webhook API key" true "$(generate_secret)"
-  prompt_yes_no ENABLE_WORKDRIVE "Enable Zoho WorkDrive upload" false
+  if [[ -z "${ENABLE_WORKDRIVE}" ]]; then
+    ENABLE_WORKDRIVE="true"
+  fi
+  prompt_yes_no ENABLE_WORKDRIVE "Enable Zoho WorkDrive upload" true
   prompt ZOHO_REGION "Zoho region (com, eu, in, com.au)" false "$ZOHO_REGION"
+
+  if [[ -z "${HOST// }" ]]; then
+    fail "A public hostname is required. Set PASSWORD_PDF_HOST or enter one at the prompt."
+  fi
 
   if [[ "$ENABLE_WORKDRIVE" == "true" ]]; then
     prompt ZOHO_WORKDRIVE_CLIENT_ID "Zoho WorkDrive client id"
