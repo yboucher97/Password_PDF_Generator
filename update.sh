@@ -30,6 +30,8 @@ if [[ ! -d "${INSTALL_DIR}/.git" ]]; then
   exit 1
 fi
 
+git config --global --add safe.directory "${INSTALL_DIR}"
+
 git -C "${INSTALL_DIR}" fetch --prune origin
 git -C "${INSTALL_DIR}" checkout "${REPO_REF}"
 git -C "${INSTALL_DIR}" reset --hard "origin/${REPO_REF}"

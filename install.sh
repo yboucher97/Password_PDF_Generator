@@ -147,6 +147,7 @@ ensure_user_and_dirs() {
 sync_repo() {
   if [[ -d "${INSTALL_DIR}/.git" ]]; then
     log "Updating existing repo in ${INSTALL_DIR}"
+    git config --global --add safe.directory "${INSTALL_DIR}"
     git -C "$INSTALL_DIR" fetch --prune origin
     git -C "$INSTALL_DIR" checkout "$REPO_REF"
     git -C "$INSTALL_DIR" reset --hard "origin/${REPO_REF}"
