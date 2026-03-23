@@ -38,9 +38,10 @@ The installer will:
 - install Ubuntu packages with `apt`
 - clone or update the repo into `/opt/password-pdf-generator`
 - create the service user and data directories
-- create a Python virtual environment and install dependencies
+- create an isolated Python virtual environment and install dependencies inside it
 - write runtime config to `/etc/password-pdf-generator/brand_settings.json`
 - write secrets to `/etc/password-pdf-generator.env`
+- write an install-path inventory text file into the invoking user's home directory
 - create and enable `password-pdf-generator.service`
 - optionally configure Caddy for your public hostname
 - optionally enable WorkDrive upload settings
@@ -87,11 +88,14 @@ That pulls the latest GitHub code, reinstalls Python dependencies if needed, pre
 After installation, the important Linux paths are:
 
 - code: `/opt/password-pdf-generator`
+- venv: `/opt/password-pdf-generator/.venv`
 - runtime config: `/etc/password-pdf-generator/brand_settings.json`
 - secrets: `/etc/password-pdf-generator.env`
+- install metadata: `/etc/password-pdf-generator/install-meta.env`
 - service: `/etc/systemd/system/password-pdf-generator.service`
 - Caddy site: `/etc/caddy/conf.d/password-pdf-generator.caddy`
 - output and logs: `/var/lib/password-pdf-generator/output/pdf/wifi`
+- path inventory file: `~/password-pdf-generator-paths.txt`
 
 ## App Entry Points
 
@@ -104,4 +108,3 @@ After installation, the important Linux paths are:
 
 - package details: [wifi_pdf/README.md](./wifi_pdf/README.md)
 - Ubuntu/ESXi deployment notes: [docs/wifi-pdf-ubuntu-esxi.md](./docs/wifi-pdf-ubuntu-esxi.md)
-

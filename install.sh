@@ -9,6 +9,7 @@ DATA_DIR="${PASSWORD_PDF_DATA_DIR:-/var/lib/password-pdf-generator}"
 CONFIG_DIR="${PASSWORD_PDF_CONFIG_DIR:-/etc/password-pdf-generator}"
 CONFIG_PATH="${CONFIG_DIR}/brand_settings.json"
 ENV_FILE="${PASSWORD_PDF_ENV_FILE:-/etc/password-pdf-generator.env}"
+META_FILE="${PASSWORD_PDF_META_FILE:-${CONFIG_DIR}/install-meta.env}"
 REPO_URL="${PASSWORD_PDF_REPO_URL:-https://github.com/yboucher97/Password_PDF_Generator.git}"
 REPO_REF="${PASSWORD_PDF_REPO_REF:-main}"
 PORT="${PASSWORD_PDF_PORT:-8000}"
@@ -17,6 +18,9 @@ API_KEY="${PASSWORD_PDF_API_KEY:-${WIFI_PDF_API_KEY:-}}"
 ENABLE_WORKDRIVE="${PASSWORD_PDF_ENABLE_WORKDRIVE:-}"
 ZOHO_REGION="${PASSWORD_PDF_ZOHO_REGION:-com}"
 UFW_MODE="${PASSWORD_PDF_CONFIGURE_UFW:-auto}"
+INSTALL_OWNER="${PASSWORD_PDF_INSTALL_OWNER:-${SUDO_USER:-$(id -un)}}"
+INSTALL_OWNER_HOME="${PASSWORD_PDF_OWNER_HOME:-}"
+PATHS_FILE="${PASSWORD_PDF_PATHS_FILE:-}"
 
 log() {
   printf '[%s] %s\n' "${APP_NAME}" "$*"
@@ -25,6 +29,29 @@ log() {
 fail() {
   printf '[%s] ERROR: %s\n' "${APP_NAME}" "$*" >&2
   exit 1
+}
+
+generate_secret() {
+  od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+initialize_context() {
+  if [[ -z "$INSTALL_OWNER_HOME" ]]; then
+    if command -v getent >/dev/null 2>&1; then
+      INSTALL_OWNER_HOME="$(getent passwd "$INSTALL_OWNER" | cut -d: -f6 || true)"
+    fi
+    if [[ -z "$INSTALL_OWNER_HOME" ]]; then
+      if [[ "$INSTALL_OWNER" == "root" ]]; then
+        INSTALL_OWNER_HOME="/root"
+      else
+        INSTALL_OWNER_HOME="/home/${INSTALL_OWNER}"
+      fi
+    fi
+  fi
+
+  if [[ -z "$PATHS_FILE" ]]; then
+    PATHS_FILE="${INSTALL_OWNER_HOME}/${APP_NAME}-paths.txt"
+  fi
 }
 
 prompt() {
@@ -192,7 +219,7 @@ PY
 
 write_env_file() {
   if [[ -z "$API_KEY" ]]; then
-    API_KEY="$(openssl rand -hex 32)"
+    API_KEY="$(generate_secret)"
   fi
 
   ENV_FILE="$ENV_FILE" \
@@ -242,6 +269,49 @@ PY
 
   chmod 600 "$ENV_FILE"
   chown root:root "$ENV_FILE"
+}
+
+write_install_metadata() {
+  mkdir -p "$CONFIG_DIR"
+  {
+    printf 'SERVICE_NAME=%q\n' "$SERVICE_NAME"
+    printf 'SERVICE_USER=%q\n' "$SERVICE_USER"
+    printf 'INSTALL_OWNER=%q\n' "$INSTALL_OWNER"
+    printf 'INSTALL_DIR=%q\n' "$INSTALL_DIR"
+    printf 'DATA_DIR=%q\n' "$DATA_DIR"
+    printf 'CONFIG_DIR=%q\n' "$CONFIG_DIR"
+    printf 'CONFIG_PATH=%q\n' "$CONFIG_PATH"
+    printf 'ENV_FILE=%q\n' "$ENV_FILE"
+    printf 'META_FILE=%q\n' "$META_FILE"
+    printf 'PATHS_FILE=%q\n' "$PATHS_FILE"
+    printf 'HOST=%q\n' "$HOST"
+    printf 'PORT=%q\n' "$PORT"
+    printf 'REPO_REF=%q\n' "$REPO_REF"
+  } >"$META_FILE"
+  chmod 644 "$META_FILE"
+}
+
+write_paths_file() {
+  mkdir -p "$(dirname "$PATHS_FILE")"
+  {
+    printf '%s  # application code\n' "$INSTALL_DIR"
+    printf '%s  # Python virtualenv\n' "${INSTALL_DIR}/.venv"
+    printf '%s  # runtime config directory\n' "$CONFIG_DIR"
+    printf '%s  # active JSON config\n' "$CONFIG_PATH"
+    printf '%s  # secrets environment file\n' "$ENV_FILE"
+    printf '%s  # systemd service file\n' "/etc/systemd/system/${SERVICE_NAME}.service"
+    printf '%s  # application data root\n' "$DATA_DIR"
+    printf '%s  # generated PDFs, manifests, QR images, and logs\n' "${DATA_DIR}/output/pdf/wifi"
+    printf '%s  # rotating application log file\n' "${DATA_DIR}/output/pdf/wifi/logs/wifi_pdf.log"
+    printf '%s  # local update script\n' "${INSTALL_DIR}/update.sh"
+    if [[ -n "$HOST" ]]; then
+      printf '%s  # Caddy site config\n' "/etc/caddy/conf.d/${SERVICE_NAME}.caddy"
+    fi
+  } >"$PATHS_FILE"
+
+  if id -u "$INSTALL_OWNER" >/dev/null 2>&1; then
+    chown "$INSTALL_OWNER:$INSTALL_OWNER" "$PATHS_FILE" || true
+  fi
 }
 
 write_service_file() {
@@ -314,9 +384,10 @@ configure_ufw() {
 
 main() {
   require_root
+  initialize_context
 
   prompt HOST "Public hostname for Caddy/HTTPS (leave blank to skip Caddy)" false "$HOST"
-  prompt API_KEY "Webhook API key" true "$(openssl rand -hex 32)"
+  prompt API_KEY "Webhook API key" true "$(generate_secret)"
   prompt_yes_no ENABLE_WORKDRIVE "Enable Zoho WorkDrive upload" false
   prompt ZOHO_REGION "Zoho region (com, eu, in, com.au)" false "$ZOHO_REGION"
 
@@ -333,15 +404,18 @@ main() {
   install_python_deps
   configure_runtime_json
   write_env_file
+  write_install_metadata
   write_service_file
   configure_caddy
   configure_ufw
+  write_paths_file
 
   log "Install complete."
   log "Code directory: ${INSTALL_DIR}"
   log "Runtime config: ${CONFIG_PATH}"
   log "Secrets file: ${ENV_FILE}"
   log "Service: ${SERVICE_NAME}"
+  log "Path inventory: ${PATHS_FILE}"
   if [[ -n "$HOST" ]]; then
     log "Public health check: https://${HOST}/health"
   else
