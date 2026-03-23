@@ -218,13 +218,23 @@ def draw_label_value_panel(
     password_min_size: int = 11,
 ) -> None:
     row_height = height / 2
-    draw_card(canvas, x, y, width, height, theme["panel_background"], radius, theme["panel_border"])
+    panel_path = canvas.beginPath()
+    panel_path.roundRect(x, y, width, height, radius)
+
+    canvas.saveState()
+    canvas.setFillColor(theme["panel_background"])
+    canvas.drawPath(panel_path, stroke=0, fill=1)
+    canvas.clipPath(panel_path, stroke=0, fill=0)
+    canvas.setFillColor(theme["label_band"])
+    canvas.rect(x, y, label_width, height, fill=1, stroke=0)
+    canvas.restoreState()
+
+    canvas.saveState()
     canvas.setStrokeColor(theme["panel_border"])
+    canvas.drawPath(panel_path, stroke=1, fill=0)
     canvas.line(x, y + row_height, x + width, y + row_height)
     canvas.line(x + label_width, y, x + label_width, y + height)
-    canvas.setFillColor(theme["label_band"])
-    canvas.rect(x, y + row_height, label_width, row_height, fill=1, stroke=0)
-    canvas.rect(x, y, label_width, row_height, fill=1, stroke=0)
+    canvas.restoreState()
 
     canvas.setFillColor(theme["label_text"])
     canvas.setFont(fonts["bold"], label_font_size)
