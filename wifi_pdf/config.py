@@ -62,6 +62,7 @@ class WorkDriveSettings:
     api_base_url: str
     accounts_base_url: str
     parent_folder_id: str | None
+    target_folder_name: str
     cleanup_local_after_upload: bool
     upload_individual_pdfs: bool
     upload_merged_pdf: bool
@@ -137,6 +138,7 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
             api_base_url=str(workdrive["api_base_url"]).rstrip("/"),
             accounts_base_url=str(workdrive["accounts_base_url"]).rstrip("/"),
             parent_folder_id=workdrive.get("parent_folder_id"),
+            target_folder_name=str(workdrive.get("target_folder_name", "Document locataire")).strip(),
             cleanup_local_after_upload=bool(workdrive["cleanup_local_after_upload"]),
             upload_individual_pdfs=bool(workdrive["upload_individual_pdfs"]),
             upload_merged_pdf=bool(workdrive["upload_merged_pdf"]),

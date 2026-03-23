@@ -130,7 +130,7 @@ class WifiPdfPipeline:
 
         if self.settings.workdrive.enabled:
             client = ZohoWorkDriveClient(self.settings.workdrive, self.logger)
-            folder_id = client.resolve_folder_id(batch.workdrive_folder_id)
+            folder_id = client.resolve_upload_folder_id(batch.workdrive_folder_id)
             upload_candidates: list[Path] = []
             if self.settings.workdrive.upload_individual_pdfs:
                 upload_candidates.extend(pdf_paths)

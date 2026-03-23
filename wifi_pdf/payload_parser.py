@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
+import secrets
+import string
 from io import StringIO
+import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -28,6 +31,7 @@ AUTH_TYPE_KEYS = ("auth_type", "AUTH_TYPE")
 HIDDEN_KEYS = ("hidden", "Hidden")
 
 WORKDRIVE_QUERY_KEYS = ("id", "folder_id", "resource_id", "parent_id")
+NUMERIC_IDENTIFIER_RE = re.compile(r"^\d+$")
 
 
 def _get_first(mapping: dict[str, Any], keys: tuple[str, ...]) -> Any:
@@ -111,13 +115,40 @@ def parse_string_list(value: Any, field_name: str) -> list[str]:
     return _parse_delimited_string(text, field_name)
 
 
+def parse_password_lists(mapping: dict[str, Any]) -> list[str]:
+    combined: list[str] = []
+    for index in range(1, 10):
+        part_value = _get_password_part(mapping, index)
+        if part_value is None:
+            continue
+        combined.extend(parse_string_list(part_value, f"passwords_{index}"))
+    return combined
+
+
+def _get_password_part(mapping: dict[str, Any], index: int) -> Any:
+    if index == 1:
+        return _get_first(mapping, PASSWORDS_KEYS)
+
+    part_candidates: list[str] = []
+    for key in PASSWORDS_KEYS:
+        part_candidates.append(f"{key}_{index}")
+        part_candidates.append(f"{key}{index}")
+    return _get_first(mapping, tuple(part_candidates))
+
+
 def normalize_ssid_prefix(value: Any) -> str:
     text = _clean_scalar(value)
-    if text is None or text == "null":
+    if text is None or text.lower() in {"null", "none", "nada"}:
         return "app"
-    if text in {"None", "Nada"}:
-        return ""
     return text
+
+
+def generate_suffix(length: int = 2) -> str:
+    return "".join(secrets.choice(string.ascii_lowercase) for _ in range(length))
+
+
+def has_numeric_identifiers(values: list[str]) -> bool:
+    return bool(values) and all(NUMERIC_IDENTIFIER_RE.fullmatch(value) for value in values)
 
 
 def extract_workdrive_folder_id(value: Any) -> str | None:
@@ -202,7 +233,7 @@ def _build_records_from_units(mapping: dict[str, Any], units: list[str], passwor
     for index, unit in enumerate(units):
         records.append(
             {
-                "ssid": f"{prefix}{unit}",
+                "ssid": f"{prefix}{unit}_{generate_suffix()}",
                 "password": passwords[index],
                 "auth_type": auth_type,
                 "hidden": hidden,
@@ -232,7 +263,7 @@ def normalize_payload(raw_payload: Any) -> dict[str, Any]:
         normalized["template_name"] = template_name
         return normalized
 
-    passwords = parse_string_list(_get_first(payload, PASSWORDS_KEYS), "passwords")
+    passwords = parse_password_lists(payload)
     ssids = parse_string_list(_get_first(payload, SSIDS_KEYS), "ssids")
     units = parse_string_list(_get_first(payload, UNITS_KEYS), "units")
     unit_labels = parse_string_list(_get_first(payload, UNIT_LABEL_KEYS), "unit_labels")
@@ -240,10 +271,15 @@ def normalize_payload(raw_payload: Any) -> dict[str, Any]:
     if not building_name:
         raise PayloadValidationError("Missing building_name or Deal_Name.")
     if not passwords:
-        raise PayloadValidationError("No passwords were provided. Send records, passwords, or Mots_de_passes.")
+        raise PayloadValidationError(
+            "No passwords were provided. Send records, passwords, Mots_de_passes, or numbered password fields such as Mots_de_passes_2."
+        )
 
     if ssids:
-        records = _build_records_from_ssids(payload, ssids, passwords, unit_labels or units)
+        if has_numeric_identifiers(ssids):
+            records = _build_records_from_units(payload, ssids, passwords)
+        else:
+            records = _build_records_from_ssids(payload, ssids, passwords, unit_labels or units)
     elif units:
         records = _build_records_from_units(payload, units, passwords)
     else:

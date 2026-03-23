@@ -37,6 +37,7 @@
     "api_base_url": "https://www.zohoapis.com/workdrive/api/v1",
     "accounts_base_url": "https://accounts.zoho.com/oauth/v2/token",
     "parent_folder_id": null,
+    "target_folder_name": "Document locataire",
     "cleanup_local_after_upload": true,
     "upload_individual_pdfs": true,
     "upload_merged_pdf": true,

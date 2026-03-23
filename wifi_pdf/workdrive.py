@@ -30,6 +30,31 @@ class ZohoWorkDriveClient:
             )
         return folder_id
 
+    def resolve_upload_folder_id(self, request_folder_id: str | None) -> str:
+        parent_folder_id = self.resolve_folder_id(request_folder_id)
+        target_folder_name = self.settings.target_folder_name.strip()
+        if not target_folder_name:
+            return parent_folder_id
+
+        timeout = httpx.Timeout(60.0, connect=20.0)
+        with httpx.Client(timeout=timeout) as client:
+            access_token = self._get_access_token(client)
+            headers = {"Authorization": f"Zoho-oauthtoken {access_token}"}
+            child_folder_id = self._find_child_folder_id(
+                client=client,
+                headers=headers,
+                parent_folder_id=parent_folder_id,
+                target_folder_name=target_folder_name,
+            )
+
+        self.logger.info(
+            "Resolved WorkDrive upload folder '%s' inside parent %s -> %s",
+            target_folder_name,
+            parent_folder_id,
+            child_folder_id,
+        )
+        return child_folder_id
+
     def _get_access_token(self, client: httpx.Client) -> str:
         if self._access_token:
             return self._access_token
@@ -123,3 +148,58 @@ class ZohoWorkDriveClient:
             "permalink": permalink,
             "status_code": response.status_code,
         }
+
+    def _find_child_folder_id(
+        self,
+        client: httpx.Client,
+        headers: dict[str, str],
+        parent_folder_id: str,
+        target_folder_name: str,
+    ) -> str:
+        offset = 0
+        limit = 50
+        target_name = target_folder_name.strip().casefold()
+
+        while True:
+            response = client.get(
+                f"{self.settings.api_base_url}/files/{parent_folder_id}/files",
+                headers=headers,
+                params={"page[limit]": limit, "page[offset]": offset},
+            )
+            if response.status_code >= 400:
+                raise WorkDriveError(
+                    f"WorkDrive folder lookup failed for parent '{parent_folder_id}' with status "
+                    f"{response.status_code}: {response.text}"
+                )
+
+            payload = response.json()
+            data = payload.get("data")
+            if not isinstance(data, list):
+                raise WorkDriveError(
+                    f"Unexpected WorkDrive folder lookup response for parent '{parent_folder_id}': {payload}"
+                )
+
+            for entry in data:
+                if not isinstance(entry, dict):
+                    continue
+                attributes = entry.get("attributes")
+                if not isinstance(attributes, dict):
+                    continue
+                if str(attributes.get("type", "")).lower() != "folder":
+                    continue
+                name = str(attributes.get("name", "")).strip()
+                if name.casefold() == target_name:
+                    folder_id = entry.get("id")
+                    if not folder_id:
+                        raise WorkDriveError(
+                            f"WorkDrive folder '{target_folder_name}' was found inside '{parent_folder_id}' but had no id."
+                        )
+                    return str(folder_id)
+
+            if len(data) < limit:
+                break
+            offset += limit
+
+        raise WorkDriveError(
+            f"Could not find a child folder named '{target_folder_name}' inside WorkDrive folder '{parent_folder_id}'."
+        )

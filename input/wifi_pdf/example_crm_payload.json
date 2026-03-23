@@ -1,7 +1,8 @@
 {
   "Deal_Name": "101-103 Rue Yanick",
   "Workdrive_folder": "https://workdrive.zoho.com/folder/abc123folderid",
-  "SSID_Prefix": "wp",
-  "Unit_s": "101,103",
-  "Mots_de_passes": "4430jw6355$@,103jw!4430$"
+  "SSID_Prefix": "app",
+  "ssid_list": "101,102,103,104",
+  "Mots_de_passes": "pass101$!,pass102@!",
+  "Mots_de_passes_2": "pass103$@,pass104@!"
 }
