@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import os
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from .config import load_settings
 from .exceptions import ConfigurationError, PayloadValidationError, RenderingError, WorkDriveError
+from .jobs import JobStore
 from .logging_utils import configure_logging
 from .pipeline import WifiPdfPipeline
-from .utils import relative_to_root
+from .utils import batch_timestamp, relative_to_root, sanitize_filename
+from .models import parse_payload
 
 
 settings = load_settings()
 logger = configure_logging(settings.output.root_dir / "logs")
-pipeline = WifiPdfPipeline(settings, logger)
+job_store = JobStore(settings.output.root_dir / "jobs", logger)
 
 
 @asynccontextmanager
@@ -33,6 +36,35 @@ def _validate_api_key(provided_api_key: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid X-API-Key")
 
 
+def _build_job_id(building_name: str) -> str:
+    return f"{batch_timestamp()}-{sanitize_filename(building_name, default='wifi-batch')}"
+
+
+def _run_job(job_id: str, payload) -> None:
+    try:
+        job_store.mark_running(job_id)
+        pipeline = WifiPdfPipeline(settings, logger)
+        result = pipeline.process_batch(payload)
+    except PayloadValidationError as exc:
+        logger.warning("Job %s failed payload validation: %s", job_id, exc)
+        job_store.mark_failed(job_id, str(exc))
+    except ConfigurationError as exc:
+        logger.error("Job %s failed configuration: %s", job_id, exc)
+        job_store.mark_failed(job_id, str(exc))
+    except WorkDriveError as exc:
+        logger.error("Job %s failed WorkDrive upload: %s", job_id, exc)
+        job_store.mark_failed(job_id, str(exc))
+    except RenderingError as exc:
+        logger.error("Job %s failed rendering: %s", job_id, exc)
+        job_store.mark_failed(job_id, str(exc))
+    except Exception as exc:  # pragma: no cover - unexpected runtime failure
+        logger.exception("Job %s failed unexpectedly", job_id)
+        job_store.mark_failed(job_id, f"Unexpected error: {exc}")
+    else:
+        job_store.mark_succeeded(job_id, result.to_dict())
+        logger.info("Job %s completed successfully", job_id)
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {
@@ -40,6 +72,14 @@ async def health() -> dict[str, str]:
         "config_path": relative_to_root(settings.config_path),
         "output_root": relative_to_root(settings.output.root_dir),
     }
+
+
+@app.get("/jobs/{job_id}")
+async def get_job(job_id: str) -> dict:
+    job = job_store.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 
 @app.post("/webhooks/zoho/wifi-pdfs")
@@ -55,14 +95,29 @@ async def create_wifi_pdfs(
         raise HTTPException(status_code=400, detail=f"Invalid JSON body: {exc}") from exc
 
     try:
-        result = pipeline.process_payload(payload)
+        batch = parse_payload(payload)
     except PayloadValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except ConfigurationError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    except WorkDriveError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except RenderingError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return result.to_dict()
+    job_id = _build_job_id(batch.building_name)
+    job_store.create(
+        job_id,
+        {
+            "building_name": batch.building_name,
+            "record_count": len(batch.records),
+            "template_name": batch.template_name,
+            "workdrive_enabled": settings.workdrive.enabled,
+        },
+    )
+
+    worker = threading.Thread(target=_run_job, args=(job_id, batch), daemon=True)
+    worker.start()
+
+    return {
+        "status": "accepted",
+        "job_id": job_id,
+        "building_name": batch.building_name,
+        "record_count": len(batch.records),
+        "template_name": batch.template_name,
+        "job_status_url": f"/jobs/{job_id}",
+    }

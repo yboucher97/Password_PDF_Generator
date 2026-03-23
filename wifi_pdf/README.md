@@ -22,6 +22,7 @@ Why this is the best architecture:
 - strong request validation before any file generation
 - easy separation of template, config, inputs, outputs, and external upload logic
 - simple single-VM deployment that can later sit behind a queue if volume grows
+- webhook requests can be acknowledged immediately while PDF generation continues in the background
 
 ## Libraries
 
@@ -159,8 +160,10 @@ wifi_pdf/
 5. Render one PDF per record using the reusable ReportLab template.
 6. Merge the PDFs in input order.
 7. Write a manifest without storing passwords.
-8. If WorkDrive is enabled, upload the merged PDF and/or individual PDFs.
-9. Delete the local batch folder only after every configured upload succeeds.
+8. Return an accepted job id immediately so webhook callers do not wait for long-running uploads.
+9. Process the batch in the background.
+10. If WorkDrive is enabled, upload the merged PDF and/or individual PDFs.
+11. Delete the local batch folder only after every configured upload succeeds.
 
 ## Error Handling Strategy
 
@@ -268,6 +271,22 @@ curl -X POST http://127.0.0.1:8000/webhooks/zoho/wifi-pdfs \
   -H "Content-Type: application/json" \
   -H "X-API-Key: replace-with-long-random-secret" \
   --data @input/wifi_pdf/example_records.json
+```
+
+The webhook returns quickly with an accepted job payload like:
+
+```json
+{
+  "status": "accepted",
+  "job_id": "20260323-123456-123456-101-103-Rue-Yanick",
+  "job_status_url": "/jobs/20260323-123456-123456-101-103-Rue-Yanick"
+}
+```
+
+Check job status:
+
+```bash
+curl http://127.0.0.1:8000/jobs/<job_id>
 ```
 
 ## Deployment Guide
