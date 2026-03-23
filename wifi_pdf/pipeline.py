@@ -38,6 +38,7 @@ class BatchOutput:
     template_name: str
     batch_dir: str
     merged_pdf_path: str
+    txt_export_path: str
     manifest_path: str
     deleted_local_batch: bool
     record_count: int
@@ -110,6 +111,8 @@ class WifiPdfPipeline:
             )
             self.logger.info("Generated PDF for SSID '%s'", record.ssid)
 
+        txt_export_path = self._write_txt_export(batch_dir, batch)
+
         merged_pdf_path = merge_pdfs(
             pdf_paths,
             merged_dir / f"{sanitize_filename(batch.building_name)}-merged.pdf",
@@ -123,6 +126,7 @@ class WifiPdfPipeline:
             "record_count": len(batch.records),
             "records": [asdict(record) for record in record_outputs],
             "merged_pdf_path": relative_to_root(merged_pdf_path),
+            "txt_export_path": relative_to_root(txt_export_path),
             "workdrive_folder_id_requested": batch.workdrive_folder_id,
         }
         manifest_path = write_json_file(batch_dir / self.settings.output.manifest_filename, manifest_payload)
@@ -138,6 +142,8 @@ class WifiPdfPipeline:
                 upload_candidates.extend(pdf_paths)
             if self.settings.workdrive.upload_merged_pdf:
                 upload_candidates.append(merged_pdf_path)
+            if self.settings.workdrive.upload_txt_export:
+                upload_candidates.append(txt_export_path)
 
             for path in upload_candidates:
                 uploads.append(client.upload_file(path, folder_id))
@@ -161,12 +167,26 @@ class WifiPdfPipeline:
             template_name=batch.template_name,
             batch_dir=relative_to_root(batch_dir),
             merged_pdf_path=relative_to_root(merged_pdf_path),
+            txt_export_path=relative_to_root(txt_export_path),
             manifest_path=relative_to_root(manifest_path),
             deleted_local_batch=deleted_local_batch,
             record_count=len(batch.records),
             records=record_outputs,
             uploads=uploads,
         )
+
+    def _write_txt_export(self, batch_dir: Path, batch: WifiBatchRequest) -> Path:
+        safe_building_name = batch.building_name.replace("/", "-").replace("\\", "-").strip()
+        if not safe_building_name:
+            safe_building_name = sanitize_filename(batch.building_name)
+        txt_path = batch_dir / f"Mot de passe {safe_building_name}.txt"
+        lines = ["Logement\tMot de passe"]
+        for record in batch.records:
+            password = record.password or ""
+            lines.append(f"{record.ssid}\t{password}")
+        txt_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self.logger.info("Generated TXT export for building '%s'", batch.building_name)
+        return txt_path
 
 
 def process_payload(

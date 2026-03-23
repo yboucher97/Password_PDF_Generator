@@ -42,6 +42,7 @@
     "cleanup_local_after_upload": true,
     "upload_individual_pdfs": true,
     "upload_merged_pdf": true,
+    "upload_txt_export": true,
     "upload_field_name": "content"
   }
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
 from pathlib import Path
 from typing import Any
@@ -107,11 +108,12 @@ class ZohoWorkDriveClient:
             }
 
             with path.open("rb") as file_handle:
+                content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
                 response = client.post(
                     f"{self.settings.api_base_url}/upload",
                     headers=headers,
                     params=params,
-                    files={self.settings.upload_field_name: (path.name, file_handle, "application/pdf")},
+                    files={self.settings.upload_field_name: (path.name, file_handle, content_type)},
                 )
 
         if response.status_code >= 400:
