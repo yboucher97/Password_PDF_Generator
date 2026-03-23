@@ -36,11 +36,13 @@ class RecordOutput:
 class BatchOutput:
     batch_id: str
     building_name: str
+    city: str | None
     template_name: str
     batch_dir: str
     merged_pdf_path: str
     txt_export_path: str
     zip_export_path: str
+    ya_export_path: str
     manifest_path: str
     deleted_local_batch: bool
     record_count: int
@@ -114,6 +116,7 @@ class WifiPdfPipeline:
             self.logger.info("Generated PDF for SSID '%s'", record.ssid)
 
         txt_export_path = self._write_txt_export(batch_dir, batch)
+        ya_export_path = self._write_ya_export(batch_dir, batch)
 
         merged_pdf_path = merge_pdfs(
             pdf_paths,
@@ -125,12 +128,14 @@ class WifiPdfPipeline:
             "generated_at": datetime.now().isoformat(timespec="seconds"),
             "batch_id": batch_id,
             "building_name": batch.building_name,
+            "city": batch.city,
             "template_name": batch.template_name,
             "record_count": len(batch.records),
             "records": [asdict(record) for record in record_outputs],
             "merged_pdf_path": relative_to_root(merged_pdf_path),
             "txt_export_path": relative_to_root(txt_export_path),
             "zip_export_path": relative_to_root(zip_export_path),
+            "ya_export_path": relative_to_root(ya_export_path),
             "workdrive_folder_id_requested": batch.workdrive_folder_id,
         }
         manifest_path = write_json_file(batch_dir / self.settings.output.manifest_filename, manifest_payload)
@@ -150,6 +155,8 @@ class WifiPdfPipeline:
                 upload_candidates.append(txt_export_path)
             if self.settings.workdrive.upload_zip_export:
                 upload_candidates.append(zip_export_path)
+            if self.settings.workdrive.upload_ya_export:
+                upload_candidates.append(ya_export_path)
 
             for path in upload_candidates:
                 uploads.append(client.upload_file(path, folder_id))
@@ -170,11 +177,13 @@ class WifiPdfPipeline:
         return BatchOutput(
             batch_id=batch_id,
             building_name=batch.building_name,
+            city=batch.city,
             template_name=batch.template_name,
             batch_dir=relative_to_root(batch_dir),
             merged_pdf_path=relative_to_root(merged_pdf_path),
             txt_export_path=relative_to_root(txt_export_path),
             zip_export_path=relative_to_root(zip_export_path),
+            ya_export_path=relative_to_root(ya_export_path),
             manifest_path=relative_to_root(manifest_path),
             deleted_local_batch=deleted_local_batch,
             record_count=len(batch.records),
@@ -192,6 +201,17 @@ class WifiPdfPipeline:
         txt_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         self.logger.info("Generated TXT export for building '%s'", batch.building_name)
         return txt_path
+
+    def _write_ya_export(self, batch_dir: Path, batch: WifiBatchRequest) -> Path:
+        safe_building_name = self._safe_building_label(batch.building_name)
+        ya_path = batch_dir / f"MDP_Site_APP {safe_building_name}.ya"
+        first_line = batch.building_name if not batch.city else f"{batch.building_name} - {batch.city}"
+        ssids = ",".join(record.ssid for record in batch.records)
+        passwords = ",".join((record.password or "") for record in batch.records)
+        vlans = ",".join(str(index * 10) for index in range(1, len(batch.records) + 1))
+        ya_path.write_text(f"{first_line}\n{ssids}\n{passwords}\n{vlans}\n", encoding="utf-8")
+        self.logger.info("Generated YA export for building '%s'", batch.building_name)
+        return ya_path
 
     def _write_zip_export(
         self,

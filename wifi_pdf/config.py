@@ -69,6 +69,7 @@ class WorkDriveSettings:
     upload_merged_pdf: bool
     upload_txt_export: bool
     upload_zip_export: bool
+    upload_ya_export: bool
     upload_field_name: str
 
 
@@ -148,6 +149,7 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
             upload_merged_pdf=bool(workdrive["upload_merged_pdf"]),
             upload_txt_export=bool(workdrive.get("upload_txt_export", True)),
             upload_zip_export=bool(workdrive.get("upload_zip_export", True)),
+            upload_ya_export=bool(workdrive.get("upload_ya_export", True)),
             upload_field_name=str(workdrive["upload_field_name"]),
         ),
     )

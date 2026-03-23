@@ -68,7 +68,9 @@ Thin CRM-style payload accepted by the VM:
 ```json
 {
   "Deal_Name": "101-103 Rue Yanick",
+  "Ville_de_l_immeuble": "Montreal",
   "Workdrive_folder": "https://workdrive.zoho.com/folder/abc123folderid",
+  "Predfined": "true",
   "SSID_Prefix": "app",
   "ssid_list": "101,102,103,104",
   "Mots_de_passes": "pass101$!,pass102@!",
@@ -79,9 +81,12 @@ Thin CRM-style payload accepted by the VM:
 Server-side normalization rules:
 
 - `Deal_Name` is accepted as `building_name`
+- `Ville_de_l_immeuble` or `City` is accepted as `city`
 - `Workdrive_folder` can be a full URL or a raw folder id
+- `Predfined` / `Predefined` controls whether supplied passwords are used or generated on the VM
 - `Unit_s`, `Mots_de_passes`, `Mots_de_passes_2`, `ssid_list`, and similar fields can be arrays, CSV strings, semicolon-separated strings, or newline-separated strings
 - password list parts are concatenated in order, so `Mots_de_passes` and `Mots_de_passes_2` behave like one combined password list
+- if `Predfined` is `false`, the VM ignores incoming password fields and generates passwords in the format `####xx####$$`
 - if `ssid_list` contains numeric unit identifiers like `101,102`, the server generates SSIDs as `<prefix><unit>_<two-random-letters>`
 - if `ssid_list` is not sent, the server builds SSIDs from `SSID_Prefix + Unit_s + "_" + <two-random-letters>`
 - if no prefix is sent, the default prefix is `app`
@@ -159,13 +164,18 @@ wifi_pdf/
 4. Generate one QR image per WiFi record.
 5. Render one PDF per record using the reusable ReportLab template.
 6. Generate a tab-separated TXT export named `Mot de passe <building_name>.txt`.
-7. Merge the PDFs in input order.
-8. Generate a ZIP export named `Mot de passe <building_name>.zip` that contains all individual PDFs plus the merged PDF.
-9. Write a manifest without storing passwords.
-10. Return an accepted job id immediately so webhook callers do not wait for long-running uploads.
-11. Process the batch in the background.
-12. If WorkDrive is enabled, upload the merged PDF, TXT export, ZIP export, and/or individual PDFs.
-13. Delete the local batch folder only after every configured upload succeeds.
+7. Generate a `.ya` export with:
+   - line 1: `Deal_Name - City`
+   - line 2: final SSIDs separated by commas
+   - line 3: final passwords separated by commas
+   - line 4: `10,20,30...` for the number of SSIDs
+8. Merge the PDFs in input order.
+9. Generate a ZIP export named `Mot de passe <building_name>.zip` that contains all individual PDFs plus the merged PDF.
+10. Write a manifest without storing passwords.
+11. Return an accepted job id immediately so webhook callers do not wait for long-running uploads.
+12. Process the batch in the background.
+13. If WorkDrive is enabled, upload the merged PDF, TXT export, `.ya` export, ZIP export, and/or individual PDFs.
+14. Delete the local batch folder only after every configured upload succeeds.
 
 ## Error Handling Strategy
 
@@ -219,7 +229,7 @@ Upload behavior:
 - the app treats the provided WorkDrive folder id as the parent building folder
 - it searches inside that folder for a child folder named `Document locataire`
 - uploads go into that child folder
-- uploads include the merged PDF, the individual PDFs, the TXT export, and the ZIP export by default
+- uploads include the merged PDF, the individual PDFs, the TXT export, the `.ya` export, and the ZIP export by default
 - uploads overwrite same-name files in that child folder by default
 - if `Document locataire` is missing, the batch fails with a clear WorkDrive error instead of uploading to the wrong place
 

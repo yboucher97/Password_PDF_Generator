@@ -13,6 +13,7 @@ from .exceptions import PayloadValidationError
 
 
 BUILDING_NAME_KEYS = ("building_name", "Building_Name", "Deal_Name", "deal_name", "name", "Name")
+CITY_KEYS = ("city", "City", "Ville_de_l_immeuble", "ville_de_l_immeuble")
 TEMPLATE_NAME_KEYS = ("template_name", "Template_Name")
 WORKDRIVE_KEYS = (
     "workdrive_folder_id",
@@ -29,9 +30,11 @@ PASSWORDS_KEYS = ("passwords", "Passwords", "password_list", "Mots_de_passes", "
 UNIT_LABEL_KEYS = ("unit_labels", "Unit_Labels", "unit_label_list")
 AUTH_TYPE_KEYS = ("auth_type", "AUTH_TYPE")
 HIDDEN_KEYS = ("hidden", "Hidden")
+PREDEFINED_KEYS = ("predefined", "Predefined", "Predfined", "predfined")
 
 WORKDRIVE_QUERY_KEYS = ("id", "folder_id", "resource_id", "parent_id")
 NUMERIC_IDENTIFIER_RE = re.compile(r"^\d+$")
+PASSWORD_SPECIALS = "*!$@#"
 
 
 def _get_first(mapping: dict[str, Any], keys: tuple[str, ...]) -> Any:
@@ -115,6 +118,24 @@ def parse_string_list(value: Any, field_name: str) -> list[str]:
     return _parse_delimited_string(text, field_name)
 
 
+def parse_bool_flag(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+
+    text = _clean_scalar(value)
+    if text is None:
+        return None
+
+    normalized = text.lower()
+    if normalized in {"true", "1", "yes", "y", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "n", "off"}:
+        return False
+    raise PayloadValidationError(f"Boolean flag value '{text}' is not recognized.")
+
+
 def parse_password_lists(mapping: dict[str, Any]) -> list[str]:
     combined: list[str] = []
     for index in range(1, 10):
@@ -145,6 +166,18 @@ def normalize_ssid_prefix(value: Any) -> str:
 
 def generate_suffix(length: int = 2) -> str:
     return "".join(secrets.choice(string.ascii_lowercase) for _ in range(length))
+
+
+def generate_password() -> str:
+    first_digits = "".join(secrets.choice(string.digits) for _ in range(4))
+    letters = "".join(secrets.choice(string.ascii_lowercase) for _ in range(2))
+    second_digits = "".join(secrets.choice(string.digits) for _ in range(4))
+    specials = "".join(secrets.choice(PASSWORD_SPECIALS) for _ in range(2))
+    return f"{first_digits}{letters}{second_digits}{specials}"
+
+
+def generate_passwords(count: int) -> list[str]:
+    return [generate_password() for _ in range(count)]
 
 
 def has_numeric_identifiers(values: list[str]) -> bool:
@@ -251,6 +284,7 @@ def normalize_payload(raw_payload: Any) -> dict[str, Any]:
 
     payload = dict(raw_payload)
     building_name = _clean_scalar(_get_first(payload, BUILDING_NAME_KEYS))
+    city = _clean_scalar(_get_first(payload, CITY_KEYS))
     template_name = _clean_scalar(_get_first(payload, TEMPLATE_NAME_KEYS)) or "basic_template"
     workdrive_folder_id = extract_workdrive_folder_id(_get_first(payload, WORKDRIVE_KEYS))
 
@@ -260,17 +294,29 @@ def normalize_payload(raw_payload: Any) -> dict[str, Any]:
             normalized["building_name"] = building_name
         if workdrive_folder_id is not None:
             normalized["workdrive_folder_id"] = workdrive_folder_id
+        if city is not None:
+            normalized["city"] = city
         normalized["template_name"] = template_name
         return normalized
 
-    passwords = parse_password_lists(payload)
     ssids = parse_string_list(_get_first(payload, SSIDS_KEYS), "ssids")
     units = parse_string_list(_get_first(payload, UNITS_KEYS), "units")
     unit_labels = parse_string_list(_get_first(payload, UNIT_LABEL_KEYS), "unit_labels")
+    predefined = parse_bool_flag(_get_first(payload, PREDEFINED_KEYS))
 
     if not building_name:
         raise PayloadValidationError("Missing building_name or Deal_Name.")
-    if not passwords:
+
+    record_count_source = ssids or units
+    if not record_count_source:
+        raise PayloadValidationError(
+            "No SSIDs or units were provided. Send records, ssids/ssid_list, or units/Unit_s."
+        )
+
+    passwords = parse_password_lists(payload)
+    if predefined is False or (predefined is None and not passwords):
+        passwords = generate_passwords(len(record_count_source))
+    elif not passwords:
         raise PayloadValidationError(
             "No passwords were provided. Send records, passwords, Mots_de_passes, or numbered password fields such as Mots_de_passes_2."
         )
@@ -280,15 +326,12 @@ def normalize_payload(raw_payload: Any) -> dict[str, Any]:
             records = _build_records_from_units(payload, ssids, passwords)
         else:
             records = _build_records_from_ssids(payload, ssids, passwords, unit_labels or units)
-    elif units:
-        records = _build_records_from_units(payload, units, passwords)
     else:
-        raise PayloadValidationError(
-            "No SSIDs or units were provided. Send records, ssids/ssid_list, or units/Unit_s."
-        )
+        records = _build_records_from_units(payload, units, passwords)
 
     normalized = {
         "building_name": building_name,
+        "city": city,
         "template_name": template_name,
         "records": records,
     }

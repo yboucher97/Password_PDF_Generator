@@ -64,6 +64,7 @@ class WifiBatchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     building_name: str = Field(min_length=1, max_length=200)
+    city: str | None = None
     workdrive_folder_id: str | None = None
     template_name: TemplateName = "basic_template"
     records: list[WifiRecord] = Field(min_length=1)
@@ -75,6 +76,14 @@ class WifiBatchRequest(BaseModel):
         if not normalized:
             raise ValueError("building_name cannot be blank.")
         return normalized
+
+    @field_validator("city")
+    @classmethod
+    def validate_city(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 def parse_payload(raw_payload: Any) -> WifiBatchRequest:

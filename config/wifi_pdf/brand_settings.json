@@ -44,6 +44,7 @@
     "upload_merged_pdf": true,
     "upload_txt_export": true,
     "upload_zip_export": true,
+    "upload_ya_export": true,
     "upload_field_name": "content"
   }
 }

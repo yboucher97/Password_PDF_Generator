@@ -1,6 +1,8 @@
 {
   "Deal_Name": "101-103 Rue Yanick",
+  "Ville_de_l_immeuble": "Montreal",
   "Workdrive_folder": "https://workdrive.zoho.com/folder/abc123folderid",
+  "Predfined": "true",
   "SSID_Prefix": "app",
   "ssid_list": "101,102,103,104",
   "Mots_de_passes": "pass101$!,pass102@!",
