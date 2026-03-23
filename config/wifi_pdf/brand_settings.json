@@ -43,6 +43,7 @@
     "upload_individual_pdfs": true,
     "upload_merged_pdf": true,
     "upload_txt_export": true,
+    "upload_zip_export": true,
     "upload_field_name": "content"
   }
 }

@@ -14,7 +14,7 @@ Use direct PDF drawing with ReportLab.
 
 Recommended production flow:
 
-`Zoho webhook -> Caddy/Nginx -> FastAPI -> Pydantic validation -> QR generator -> ReportLab renderer -> individual PDFs + TXT export -> merged PDF -> optional Zoho WorkDrive upload -> optional local cleanup`
+`Zoho webhook -> Caddy/Nginx -> FastAPI -> Pydantic validation -> QR generator -> ReportLab renderer -> individual PDFs + TXT export + ZIP export -> merged PDF -> optional Zoho WorkDrive upload -> optional local cleanup`
 
 Why this is the best architecture:
 
@@ -160,11 +160,12 @@ wifi_pdf/
 5. Render one PDF per record using the reusable ReportLab template.
 6. Generate a tab-separated TXT export named `Mot de passe <building_name>.txt`.
 7. Merge the PDFs in input order.
-8. Write a manifest without storing passwords.
-9. Return an accepted job id immediately so webhook callers do not wait for long-running uploads.
-10. Process the batch in the background.
-11. If WorkDrive is enabled, upload the merged PDF, TXT export, and/or individual PDFs.
-12. Delete the local batch folder only after every configured upload succeeds.
+8. Generate a ZIP export named `Mot de passe <building_name>.zip` that contains all individual PDFs plus the merged PDF.
+9. Write a manifest without storing passwords.
+10. Return an accepted job id immediately so webhook callers do not wait for long-running uploads.
+11. Process the batch in the background.
+12. If WorkDrive is enabled, upload the merged PDF, TXT export, ZIP export, and/or individual PDFs.
+13. Delete the local batch folder only after every configured upload succeeds.
 
 ## Error Handling Strategy
 
@@ -218,7 +219,7 @@ Upload behavior:
 - the app treats the provided WorkDrive folder id as the parent building folder
 - it searches inside that folder for a child folder named `Document locataire`
 - uploads go into that child folder
-- uploads include the merged PDF, the individual PDFs, and the TXT export by default
+- uploads include the merged PDF, the individual PDFs, the TXT export, and the ZIP export by default
 - uploads overwrite same-name files in that child folder by default
 - if `Document locataire` is missing, the batch fails with a clear WorkDrive error instead of uploading to the wrong place
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import zipfile
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -39,6 +40,7 @@ class BatchOutput:
     batch_dir: str
     merged_pdf_path: str
     txt_export_path: str
+    zip_export_path: str
     manifest_path: str
     deleted_local_batch: bool
     record_count: int
@@ -117,6 +119,7 @@ class WifiPdfPipeline:
             pdf_paths,
             merged_dir / f"{sanitize_filename(batch.building_name)}-merged.pdf",
         )
+        zip_export_path = self._write_zip_export(batch_dir, batch, pdf_paths, merged_pdf_path)
 
         manifest_payload = {
             "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -127,6 +130,7 @@ class WifiPdfPipeline:
             "records": [asdict(record) for record in record_outputs],
             "merged_pdf_path": relative_to_root(merged_pdf_path),
             "txt_export_path": relative_to_root(txt_export_path),
+            "zip_export_path": relative_to_root(zip_export_path),
             "workdrive_folder_id_requested": batch.workdrive_folder_id,
         }
         manifest_path = write_json_file(batch_dir / self.settings.output.manifest_filename, manifest_payload)
@@ -144,6 +148,8 @@ class WifiPdfPipeline:
                 upload_candidates.append(merged_pdf_path)
             if self.settings.workdrive.upload_txt_export:
                 upload_candidates.append(txt_export_path)
+            if self.settings.workdrive.upload_zip_export:
+                upload_candidates.append(zip_export_path)
 
             for path in upload_candidates:
                 uploads.append(client.upload_file(path, folder_id))
@@ -168,6 +174,7 @@ class WifiPdfPipeline:
             batch_dir=relative_to_root(batch_dir),
             merged_pdf_path=relative_to_root(merged_pdf_path),
             txt_export_path=relative_to_root(txt_export_path),
+            zip_export_path=relative_to_root(zip_export_path),
             manifest_path=relative_to_root(manifest_path),
             deleted_local_batch=deleted_local_batch,
             record_count=len(batch.records),
@@ -176,9 +183,7 @@ class WifiPdfPipeline:
         )
 
     def _write_txt_export(self, batch_dir: Path, batch: WifiBatchRequest) -> Path:
-        safe_building_name = batch.building_name.replace("/", "-").replace("\\", "-").strip()
-        if not safe_building_name:
-            safe_building_name = sanitize_filename(batch.building_name)
+        safe_building_name = self._safe_building_label(batch.building_name)
         txt_path = batch_dir / f"Mot de passe {safe_building_name}.txt"
         lines = ["Logement\tMot de passe"]
         for record in batch.records:
@@ -187,6 +192,28 @@ class WifiPdfPipeline:
         txt_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         self.logger.info("Generated TXT export for building '%s'", batch.building_name)
         return txt_path
+
+    def _write_zip_export(
+        self,
+        batch_dir: Path,
+        batch: WifiBatchRequest,
+        pdf_paths: list[Path],
+        merged_pdf_path: Path,
+    ) -> Path:
+        safe_building_name = self._safe_building_label(batch.building_name)
+        zip_path = batch_dir / f"Mot de passe {safe_building_name}.zip"
+        with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for pdf_path in pdf_paths:
+                archive.write(pdf_path, arcname=pdf_path.name)
+            archive.write(merged_pdf_path, arcname=merged_pdf_path.name)
+        self.logger.info("Generated ZIP export for building '%s'", batch.building_name)
+        return zip_path
+
+    def _safe_building_label(self, building_name: str) -> str:
+        safe_building_name = building_name.replace("/", "-").replace("\\", "-").strip()
+        if not safe_building_name:
+            safe_building_name = sanitize_filename(building_name)
+        return safe_building_name
 
 
 def process_payload(
