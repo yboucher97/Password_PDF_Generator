@@ -77,11 +77,13 @@ class WifiPdfPipeline:
 
         record_outputs: list[RecordOutput] = []
         pdf_paths: list[Path] = []
+        used_filename_bases: dict[str, int] = {}
 
         for index, record in enumerate(batch.records, start=1):
-            filename_base = sanitize_filename(
-                f"{batch.building_name}-{record.unit_label or record.ssid}-{index}"
-            )
+            filename_seed = sanitize_filename(f"{batch.building_name}-{record.unit_label or record.ssid}")
+            filename_count = used_filename_bases.get(filename_seed, 0)
+            used_filename_bases[filename_seed] = filename_count + 1
+            filename_base = filename_seed if filename_count == 0 else f"{filename_seed}-{filename_count + 1}"
             qr_payload = build_wifi_qr_string(record)
             qr_path = qr_dir / f"{filename_base}-qr.png"
             pdf_path = individual_dir / f"{filename_base}.pdf"
