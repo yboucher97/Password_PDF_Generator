@@ -1,0 +1,135 @@
+{
+  "$defs": {
+    "WifiRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "SSID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Ssid",
+          "type": "string"
+        },
+        "PASSWORD": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Password"
+        },
+        "AUTH_TYPE": {
+          "default": "WPA",
+          "title": "Auth Type",
+          "type": "string"
+        },
+        "hidden": {
+          "default": false,
+          "title": "Hidden",
+          "type": "boolean"
+        },
+        "tenant_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tenant Name"
+        },
+        "unit_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Label"
+        },
+        "notes_fr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes Fr"
+        },
+        "notes_en": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes En"
+        }
+      },
+      "required": [
+        "SSID"
+      ],
+      "title": "WifiRecord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "building_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Building Name",
+      "type": "string"
+    },
+    "workdrive_folder_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workdrive Folder Id"
+    },
+    "template_name": {
+      "default": "legacy_template",
+      "enum": [
+        "legacy_template",
+        "modern_template"
+      ],
+      "title": "Template Name",
+      "type": "string"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/WifiRecord"
+      },
+      "minItems": 1,
+      "title": "Records",
+      "type": "array"
+    }
+  },
+  "required": [
+    "building_name",
+    "records"
+  ],
+  "title": "WiFi PDF Batch Request",
+  "type": "object",
+  "description": "Recommended top-level schema for tenant WiFi PDF generation. A raw array of records is also accepted for backward compatibility."
+}

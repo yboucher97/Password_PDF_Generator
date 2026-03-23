@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+.dev.vars
+.playwright-cli/
+output/
+experiments/
+.venv*/
+__pycache__/
+*.pyc

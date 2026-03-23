@@ -1,0 +1,21 @@
+{
+  "building_name": "101-103 Rue Yanick",
+  "workdrive_folder_id": "replace-with-workdrive-folder-id",
+  "template_name": "legacy_template",
+  "records": [
+    {
+      "ssid": "app101_jw",
+      "password": "4430jw6355$@",
+      "unit_label": "Appartement 101",
+      "tenant_name": "Tenant 101",
+      "auth_type": "WPA"
+    },
+    {
+      "ssid": "app103_jw",
+      "password": "103jw!4430$",
+      "unit_label": "Appartement 103",
+      "tenant_name": "Tenant 103",
+      "auth_type": "WPA"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "branding": {
+    "brand_name": "WifiPlex",
+    "logo_path": "assets/wifi_pdf/wifiplex-logo.png",
+    "support_email": "Support@WifiPlex.ca",
+    "support_phone": "514-556-1556 #2",
+    "primary_color": "#0A4F94",
+    "secondary_color": "#EAF4FF",
+    "accent_color": "#25A4FF",
+    "text_color": "#0D2A47",
+    "muted_text_color": "#475569"
+  },
+  "fonts": {
+    "regular_name": "DejaVuSans",
+    "bold_name": "DejaVuSans-Bold",
+    "regular_path": "assets/fonts/DejaVuSans.ttf",
+    "bold_path": "assets/fonts/DejaVuSans-Bold.ttf",
+    "fallback_regular": "Helvetica",
+    "fallback_bold": "Helvetica-Bold"
+  },
+  "layout": {
+    "page_size": "LETTER",
+    "margin_points": 42,
+    "header_height_points": 92,
+    "card_corner_radius": 14
+  },
+  "output": {
+    "root_dir": "output/pdf/wifi",
+    "manifest_filename": "manifest.json",
+    "keep_qr_images": true
+  },
+  "api": {
+    "api_key_env": "WIFI_PDF_API_KEY"
+  },
+  "workdrive": {
+    "enabled": false,
+    "api_base_url": "https://www.zohoapis.com/workdrive/api/v1",
+    "accounts_base_url": "https://accounts.zoho.com/oauth/v2/token",
+    "parent_folder_id": null,
+    "cleanup_local_after_upload": true,
+    "upload_individual_pdfs": true,
+    "upload_merged_pdf": true,
+    "upload_field_name": "content"
+  }
+}

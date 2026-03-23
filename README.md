@@ -1,0 +1,107 @@
+# Password PDF Generator
+
+Production-ready WiFi/password PDF generator with:
+
+- FastAPI webhook intake
+- fixed-layout PDF rendering with ReportLab
+- per-record QR code generation
+- merged PDF output
+- optional Zoho WorkDrive upload
+- Ubuntu installer with systemd and Caddy setup
+
+## Repo Layout
+
+```text
+assets/
+  wifi_pdf/
+config/
+  wifi_pdf/
+docs/
+input/
+  wifi_pdf/
+wifi_pdf/
+install.sh
+update.sh
+requirements.txt
+```
+
+## Quick Install On Ubuntu
+
+Interactive one-command install:
+
+```bash
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/yboucher97/Password_PDF_Generator/main/install.sh)
+```
+
+The installer will:
+
+- install Ubuntu packages with `apt`
+- clone or update the repo into `/opt/password-pdf-generator`
+- create the service user and data directories
+- create a Python virtual environment and install dependencies
+- write runtime config to `/etc/password-pdf-generator/brand_settings.json`
+- write secrets to `/etc/password-pdf-generator.env`
+- create and enable `password-pdf-generator.service`
+- optionally configure Caddy for your public hostname
+- optionally enable WorkDrive upload settings
+
+## Non-Interactive Install
+
+You can also pass values in one command:
+
+```bash
+sudo PASSWORD_PDF_HOST=wifi-api.example.com \
+PASSWORD_PDF_API_KEY=replace-with-long-random-secret \
+PASSWORD_PDF_ENABLE_WORKDRIVE=false \
+bash <(curl -fsSL https://raw.githubusercontent.com/yboucher97/Password_PDF_Generator/main/install.sh)
+```
+
+Supported installer variables:
+
+- `PASSWORD_PDF_HOST`
+- `PASSWORD_PDF_API_KEY`
+- `PASSWORD_PDF_ENABLE_WORKDRIVE`
+- `PASSWORD_PDF_ZOHO_REGION`
+- `ZOHO_WORKDRIVE_CLIENT_ID`
+- `ZOHO_WORKDRIVE_CLIENT_SECRET`
+- `ZOHO_WORKDRIVE_REFRESH_TOKEN`
+- `ZOHO_WORKDRIVE_PARENT_FOLDER_ID`
+- `PASSWORD_PDF_INSTALL_DIR`
+- `PASSWORD_PDF_DATA_DIR`
+- `PASSWORD_PDF_CONFIG_DIR`
+- `PASSWORD_PDF_REPO_URL`
+- `PASSWORD_PDF_REPO_REF`
+
+## Update An Existing Install
+
+On the target machine:
+
+```bash
+sudo /opt/password-pdf-generator/update.sh
+```
+
+That pulls the latest GitHub code, reinstalls Python dependencies if needed, preserves `/etc/password-pdf-generator/brand_settings.json` and `/etc/password-pdf-generator.env`, and restarts the service.
+
+## Installed Runtime Paths
+
+After installation, the important Linux paths are:
+
+- code: `/opt/password-pdf-generator`
+- runtime config: `/etc/password-pdf-generator/brand_settings.json`
+- secrets: `/etc/password-pdf-generator.env`
+- service: `/etc/systemd/system/password-pdf-generator.service`
+- Caddy site: `/etc/caddy/conf.d/password-pdf-generator.caddy`
+- output and logs: `/var/lib/password-pdf-generator/output/pdf/wifi`
+
+## App Entry Points
+
+- API: `wifi_pdf.api:app`
+- CLI: `python -m wifi_pdf.cli`
+- Health endpoint: `GET /health`
+- Webhook endpoint: `POST /webhooks/zoho/wifi-pdfs`
+
+## Docs
+
+- package details: [wifi_pdf/README.md](./wifi_pdf/README.md)
+- Ubuntu/ESXi deployment notes: [docs/wifi-pdf-ubuntu-esxi.md](./docs/wifi-pdf-ubuntu-esxi.md)
+
