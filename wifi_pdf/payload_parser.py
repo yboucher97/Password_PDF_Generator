@@ -14,6 +14,7 @@ from .exceptions import PayloadValidationError
 
 BUILDING_NAME_KEYS = ("building_name", "Building_Name", "Deal_Name", "deal_name", "name", "Name")
 CITY_KEYS = ("city", "City", "Ville_de_l_immeuble", "ville_de_l_immeuble")
+CRM_RECORD_ID_KEYS = ("crm_record_id", "CRM_Record_Id", "record_id", "Record_Id", "Fiche_Id", "fiche_id")
 TEMPLATE_NAME_KEYS = ("template_name", "Template_Name")
 WORKDRIVE_KEYS = (
     "workdrive_folder_id",
@@ -285,6 +286,7 @@ def normalize_payload(raw_payload: Any) -> dict[str, Any]:
     payload = dict(raw_payload)
     building_name = _clean_scalar(_get_first(payload, BUILDING_NAME_KEYS))
     city = _clean_scalar(_get_first(payload, CITY_KEYS))
+    crm_record_id = _clean_scalar(_get_first(payload, CRM_RECORD_ID_KEYS))
     template_name = _clean_scalar(_get_first(payload, TEMPLATE_NAME_KEYS)) or "basic_template"
     workdrive_folder_id = extract_workdrive_folder_id(_get_first(payload, WORKDRIVE_KEYS))
 
@@ -296,6 +298,8 @@ def normalize_payload(raw_payload: Any) -> dict[str, Any]:
             normalized["workdrive_folder_id"] = workdrive_folder_id
         if city is not None:
             normalized["city"] = city
+        if crm_record_id is not None:
+            normalized["crm_record_id"] = crm_record_id
         normalized["template_name"] = template_name
         return normalized
 
@@ -314,7 +318,8 @@ def normalize_payload(raw_payload: Any) -> dict[str, Any]:
         )
 
     passwords = parse_password_lists(payload)
-    if predefined is False or (predefined is None and not passwords):
+    passwords_generated = predefined is False or (predefined is None and not passwords)
+    if passwords_generated:
         passwords = generate_passwords(len(record_count_source))
     elif not passwords:
         raise PayloadValidationError(
@@ -332,6 +337,8 @@ def normalize_payload(raw_payload: Any) -> dict[str, Any]:
     normalized = {
         "building_name": building_name,
         "city": city,
+        "crm_record_id": crm_record_id,
+        "passwords_generated": passwords_generated,
         "template_name": template_name,
         "records": records,
     }

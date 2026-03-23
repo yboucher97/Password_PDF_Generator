@@ -65,6 +65,8 @@ class WifiBatchRequest(BaseModel):
 
     building_name: str = Field(min_length=1, max_length=200)
     city: str | None = None
+    crm_record_id: str | None = None
+    passwords_generated: bool = False
     workdrive_folder_id: str | None = None
     template_name: TemplateName = "basic_template"
     records: list[WifiRecord] = Field(min_length=1)
@@ -80,6 +82,14 @@ class WifiBatchRequest(BaseModel):
     @field_validator("city")
     @classmethod
     def validate_city(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("crm_record_id")
+    @classmethod
+    def validate_record_id(cls, value: str | None) -> str | None:
         if value is None:
             return None
         normalized = value.strip()

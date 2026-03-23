@@ -32,6 +32,14 @@
   "api": {
     "api_key_env": "WIFI_PDF_API_KEY"
   },
+  "crm": {
+    "enabled": true,
+    "api_base_url": "https://www.zohoapis.com/crm/v7",
+    "module_api_name": "Fiches_Techniques",
+    "primary_password_field": "Mots_de_passes",
+    "overflow_password_field": "MDP",
+    "primary_password_limit": 150
+  },
   "workdrive": {
     "enabled": false,
     "api_base_url": "https://www.zohoapis.com/workdrive/api/v1",

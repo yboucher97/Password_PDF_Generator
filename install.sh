@@ -168,23 +168,28 @@ install_python_deps() {
 configure_runtime_json() {
   local workdrive_api_base
   local workdrive_accounts_base
+  local crm_api_base
 
   case "$ZOHO_REGION" in
     com)
       workdrive_api_base="https://www.zohoapis.com/workdrive/api/v1"
       workdrive_accounts_base="https://accounts.zoho.com/oauth/v2/token"
+      crm_api_base="https://www.zohoapis.com/crm/v7"
       ;;
     eu)
       workdrive_api_base="https://www.zohoapis.eu/workdrive/api/v1"
       workdrive_accounts_base="https://accounts.zoho.eu/oauth/v2/token"
+      crm_api_base="https://www.zohoapis.eu/crm/v7"
       ;;
     in)
       workdrive_api_base="https://www.zohoapis.in/workdrive/api/v1"
       workdrive_accounts_base="https://accounts.zoho.in/oauth/v2/token"
+      crm_api_base="https://www.zohoapis.in/crm/v7"
       ;;
     com.au)
       workdrive_api_base="https://www.zohoapis.com.au/workdrive/api/v1"
       workdrive_accounts_base="https://accounts.zoho.com.au/oauth/v2/token"
+      crm_api_base="https://www.zohoapis.com.au/crm/v7"
       ;;
     *)
       fail "Unsupported PASSWORD_PDF_ZOHO_REGION: ${ZOHO_REGION}"
@@ -200,6 +205,7 @@ configure_runtime_json() {
   WORKDRIVE_ENABLED="$ENABLE_WORKDRIVE" \
   WORKDRIVE_API_BASE="$workdrive_api_base" \
   WORKDRIVE_ACCOUNTS_BASE="$workdrive_accounts_base" \
+  CRM_API_BASE="$crm_api_base" \
   DEFAULT_WORKDRIVE_FOLDER_ID="${ZOHO_WORKDRIVE_PARENT_FOLDER_ID:-}" \
   python3 - <<'PY'
 import json
@@ -212,6 +218,8 @@ data["output"]["root_dir"] = os.environ["DATA_OUTPUT_DIR"]
 data["workdrive"]["enabled"] = os.environ["WORKDRIVE_ENABLED"].lower() == "true"
 data["workdrive"]["api_base_url"] = os.environ["WORKDRIVE_API_BASE"]
 data["workdrive"]["accounts_base_url"] = os.environ["WORKDRIVE_ACCOUNTS_BASE"]
+data.setdefault("crm", {})
+data["crm"]["api_base_url"] = os.environ["CRM_API_BASE"]
 if os.environ["DEFAULT_WORKDRIVE_FOLDER_ID"]:
     data["workdrive"]["parent_folder_id"] = os.environ["DEFAULT_WORKDRIVE_FOLDER_ID"]
 config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")

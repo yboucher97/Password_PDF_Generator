@@ -57,6 +57,16 @@ class ApiSettings:
 
 
 @dataclass(slots=True)
+class CrmSettings:
+    enabled: bool
+    api_base_url: str
+    module_api_name: str
+    primary_password_field: str
+    overflow_password_field: str
+    primary_password_limit: int
+
+
+@dataclass(slots=True)
 class WorkDriveSettings:
     enabled: bool
     api_base_url: str
@@ -81,6 +91,7 @@ class AppSettings:
     layout: LayoutSettings
     output: OutputSettings
     api: ApiSettings
+    crm: CrmSettings
     workdrive: WorkDriveSettings
 
 
@@ -102,6 +113,7 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
     layout = _require_dict(payload.get("layout"), "layout")
     output = _require_dict(payload.get("output"), "output")
     api = _require_dict(payload.get("api"), "api")
+    crm = _require_dict(payload.get("crm") or {}, "crm")
     workdrive = _require_dict(payload.get("workdrive"), "workdrive")
 
     return AppSettings(
@@ -137,6 +149,14 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
             keep_qr_images=bool(output["keep_qr_images"]),
         ),
         api=ApiSettings(api_key_env=str(api["api_key_env"])),
+        crm=CrmSettings(
+            enabled=bool(crm.get("enabled", True)),
+            api_base_url=str(crm.get("api_base_url", "https://www.zohoapis.com/crm/v7")).rstrip("/"),
+            module_api_name=str(crm.get("module_api_name", "Fiches_Techniques")),
+            primary_password_field=str(crm.get("primary_password_field", "Mots_de_passes")),
+            overflow_password_field=str(crm.get("overflow_password_field", "MDP")),
+            primary_password_limit=int(crm.get("primary_password_limit", 150)),
+        ),
         workdrive=WorkDriveSettings(
             enabled=bool(workdrive["enabled"]),
             api_base_url=str(workdrive["api_base_url"]).rstrip("/"),

@@ -69,6 +69,7 @@ Thin CRM-style payload accepted by the VM:
 {
   "Deal_Name": "101-103 Rue Yanick",
   "Ville_de_l_immeuble": "Montreal",
+  "record_id": "4143382000147783039",
   "Workdrive_folder": "https://workdrive.zoho.com/folder/abc123folderid",
   "Predfined": "true",
   "SSID_Prefix": "app",
@@ -82,11 +83,15 @@ Server-side normalization rules:
 
 - `Deal_Name` is accepted as `building_name`
 - `Ville_de_l_immeuble` or `City` is accepted as `city`
+- `record_id` / `Fiche_Id` is accepted as the Zoho CRM record id for post-generation updates
 - `Workdrive_folder` can be a full URL or a raw folder id
 - `Predfined` / `Predefined` controls whether supplied passwords are used or generated on the VM
 - `Unit_s`, `Mots_de_passes`, `Mots_de_passes_2`, `ssid_list`, and similar fields can be arrays, CSV strings, semicolon-separated strings, or newline-separated strings
 - password list parts are concatenated in order, so `Mots_de_passes` and `Mots_de_passes_2` behave like one combined password list
 - if `Predfined` is `false`, the VM ignores incoming password fields and generates passwords in the format `####xx####$$`
+- if passwords are generated and a CRM record id is provided, the VM updates the `Fiches_Techniques` record:
+  - `Mots_de_passes` gets up to the first 150 generated passwords
+  - `MDP` gets any remaining generated passwords
 - if `ssid_list` contains numeric unit identifiers like `101,102`, the server generates SSIDs as `<prefix><unit>_<two-random-letters>`
 - if `ssid_list` is not sent, the server builds SSIDs from `SSID_Prefix + Unit_s + "_" + <two-random-letters>`
 - if no prefix is sent, the default prefix is `app`

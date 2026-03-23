@@ -22,6 +22,7 @@ from .utils import (
     write_json_file,
 )
 from .workdrive import ZohoWorkDriveClient
+from .zoho_crm import ZohoCrmClient
 
 
 @dataclass(slots=True)
@@ -47,6 +48,7 @@ class BatchOutput:
     deleted_local_batch: bool
     record_count: int
     records: list[RecordOutput]
+    crm_update: dict[str, Any] | None
     uploads: list[dict[str, Any]]
 
     def to_dict(self) -> dict[str, Any]:
@@ -141,6 +143,7 @@ class WifiPdfPipeline:
         manifest_path = write_json_file(batch_dir / self.settings.output.manifest_filename, manifest_payload)
 
         uploads: list[dict[str, Any]] = []
+        crm_update: dict[str, Any] | None = None
         deleted_local_batch = False
 
         if self.settings.workdrive.enabled:
@@ -168,6 +171,13 @@ class WifiPdfPipeline:
                 except OSError as exc:
                     raise WorkDriveError(f"Upload succeeded but local cleanup failed: {exc}") from exc
 
+        if batch.passwords_generated and batch.crm_record_id and self.settings.crm.enabled:
+            crm_client = ZohoCrmClient(self.settings.crm, self.settings.workdrive, self.logger)
+            crm_update = crm_client.update_generated_password_fields(
+                record_id=batch.crm_record_id,
+                passwords=[record.password or "" for record in batch.records],
+            )
+
         if not self.settings.output.keep_qr_images and not deleted_local_batch:
             shutil.rmtree(qr_dir, ignore_errors=True)
             for record in record_outputs:
@@ -188,6 +198,7 @@ class WifiPdfPipeline:
             deleted_local_batch=deleted_local_batch,
             record_count=len(batch.records),
             records=record_outputs,
+            crm_update=crm_update,
             uploads=uploads,
         )
 
