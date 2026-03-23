@@ -103,7 +103,7 @@ class ZohoWorkDriveClient:
             params = {
                 "parent_id": folder_id,
                 "filename": path.name,
-                "override-name-exist": "false",
+                "override-name-exist": "true" if self.settings.overwrite_existing_files else "false",
             }
 
             with path.open("rb") as file_handle:
