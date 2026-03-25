@@ -276,9 +276,10 @@ def _build_records_from_units(mapping: dict[str, Any], units: list[str], passwor
 
     records: list[dict[str, Any]] = []
     for index, unit in enumerate(units):
+        ssid = f"{prefix}{unit}_{generate_suffix()}" if prefix else unit
         records.append(
             {
-                "ssid": f"{prefix}{unit}_{generate_suffix()}",
+                "ssid": ssid,
                 "password": passwords[index],
                 "auth_type": auth_type,
                 "hidden": hidden,
