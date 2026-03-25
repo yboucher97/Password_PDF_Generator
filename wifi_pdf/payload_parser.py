@@ -45,6 +45,13 @@ def _get_first(mapping: dict[str, Any], keys: tuple[str, ...]) -> Any:
     return None
 
 
+def _get_first_present(mapping: dict[str, Any], keys: tuple[str, ...]) -> tuple[bool, Any]:
+    for key in keys:
+        if key in mapping:
+            return True, mapping[key]
+    return False, None
+
+
 def _stringify(value: Any) -> str | None:
     if value is None:
         return None
@@ -158,10 +165,14 @@ def _get_password_part(mapping: dict[str, Any], index: int) -> Any:
     return _get_first(mapping, tuple(part_candidates))
 
 
-def normalize_ssid_prefix(value: Any) -> str:
-    text = _clean_scalar(value)
-    if text is None or text.lower() in {"null", "none", "nada"}:
+def normalize_ssid_prefix(mapping: dict[str, Any]) -> str:
+    is_present, raw_value = _get_first_present(mapping, SSID_PREFIX_KEYS)
+    if not is_present:
         return "app"
+
+    text = _clean_scalar(raw_value)
+    if text is None or text.lower() in {"empty", "null", "none", "nada"}:
+        return ""
     return text
 
 
@@ -258,7 +269,7 @@ def _build_records_from_units(mapping: dict[str, Any], units: list[str], passwor
             f"Unit count ({len(units)}) does not match password count ({len(passwords)})."
         )
 
-    prefix = normalize_ssid_prefix(_get_first(mapping, SSID_PREFIX_KEYS))
+    prefix = normalize_ssid_prefix(mapping)
     auth_type = _clean_scalar(_get_first(mapping, AUTH_TYPE_KEYS)) or "WPA"
     hidden_value = _get_first(mapping, HIDDEN_KEYS)
     hidden = bool(hidden_value) if isinstance(hidden_value, bool) else str(hidden_value).strip().lower() == "true"
