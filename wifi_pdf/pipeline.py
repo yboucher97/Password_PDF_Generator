@@ -164,19 +164,19 @@ class WifiPdfPipeline:
             for path in upload_candidates:
                 uploads.append(client.upload_file(path, folder_id))
 
-            if self.settings.workdrive.cleanup_local_after_upload:
-                try:
-                    shutil.rmtree(batch_dir)
-                    deleted_local_batch = True
-                except OSError as exc:
-                    raise WorkDriveError(f"Upload succeeded but local cleanup failed: {exc}") from exc
-
         if batch.passwords_generated and batch.crm_record_id and self.settings.crm.enabled:
             crm_client = ZohoCrmClient(self.settings.crm, self.settings.workdrive, self.logger)
             crm_update = crm_client.update_generated_password_fields(
                 record_id=batch.crm_record_id,
                 passwords=[record.password or "" for record in batch.records],
             )
+
+        if self.settings.workdrive.cleanup_local_after_upload:
+            try:
+                shutil.rmtree(batch_dir)
+                deleted_local_batch = True
+            except OSError as exc:
+                raise WorkDriveError(f"Processing succeeded but local cleanup failed: {exc}") from exc
 
         if not self.settings.output.keep_qr_images and not deleted_local_batch:
             shutil.rmtree(qr_dir, ignore_errors=True)

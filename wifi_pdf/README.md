@@ -181,14 +181,14 @@ wifi_pdf/
 11. Return an accepted job id immediately so webhook callers do not wait for long-running uploads.
 12. Process the batch in the background.
 13. If WorkDrive is enabled, upload the merged PDF, TXT export, `.ya` export, ZIP export, and/or individual PDFs.
-14. Delete the local batch folder only after every configured upload succeeds.
+14. Delete the local batch folder after a successful run so local PDFs, TXT files, ZIPs, and manifests do not remain on disk.
 
 ## Error Handling Strategy
 
 - reject invalid JSON with HTTP 422 or CLI failure before rendering begins
 - reject missing OAuth and WorkDrive folder configuration before upload begins
 - never log passwords
-- keep local files on disk if any upload fails
+- clean up local output files after successful processing; failed runs still keep files for diagnosis
 - raise hard failures on render or merge errors instead of silently skipping records
 - store a manifest without secrets for traceability
 
