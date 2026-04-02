@@ -31,6 +31,8 @@ LEGACY_APP_DIR="${PASSWORD_PDF_LEGACY_APP_DIR:-/opt/password-pdf-generator}"
 LEGACY_DATA_DIR="${PASSWORD_PDF_LEGACY_DATA_DIR:-/var/lib/password-pdf-generator}"
 LEGACY_CONFIG_PATH="${PASSWORD_PDF_LEGACY_CONFIG_PATH:-/etc/password-pdf-generator/brand_settings.json}"
 LEGACY_ENV_FILE="${PASSWORD_PDF_LEGACY_ENV_FILE:-/etc/password-pdf-generator.env}"
+API_KEY_SOURCE=""
+GENERATED_API_KEY=""
 
 log() {
   printf '[%s] %s\n' "${APP_NAME}" "$*"
@@ -43,6 +45,32 @@ fail() {
 
 generate_secret() {
   od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+read_env_value_from_file() {
+  local file_path="$1"
+  local key_name="$2"
+
+  if [[ ! -f "$file_path" ]]; then
+    return 1
+  fi
+
+  python3 - "$file_path" "$key_name" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+key = sys.argv[2]
+for raw_line in path.read_text(encoding="utf-8").splitlines():
+    line = raw_line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    current_key, value = line.split("=", 1)
+    if current_key.strip() == key:
+        print(value.strip())
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
 }
 
 initialize_context() {
@@ -203,6 +231,31 @@ migrate_legacy_layout() {
   fi
 }
 
+prepare_api_key() {
+  local current_key=""
+
+  if [[ -n "$API_KEY" ]]; then
+    API_KEY_SOURCE="provided"
+    return
+  fi
+
+  if current_key="$(read_env_value_from_file "$ENV_FILE" "WIFI_PDF_API_KEY" 2>/dev/null)"; then
+    API_KEY="$current_key"
+    API_KEY_SOURCE="existing"
+    return
+  fi
+
+  if current_key="$(read_env_value_from_file "$LEGACY_ENV_FILE" "WIFI_PDF_API_KEY" 2>/dev/null)"; then
+    API_KEY="$current_key"
+    API_KEY_SOURCE="existing"
+    return
+  fi
+
+  API_KEY="$(generate_secret)"
+  GENERATED_API_KEY="$API_KEY"
+  API_KEY_SOURCE="generated"
+}
+
 sync_repo() {
   mkdir -p "$(dirname "$APP_DIR")"
   if [[ -d "${APP_DIR}/.git" ]]; then
@@ -288,10 +341,6 @@ PY
 }
 
 write_env_file() {
-  if [[ -z "$API_KEY" ]]; then
-    API_KEY="$(generate_secret)"
-  fi
-
   ENV_FILE="$ENV_FILE" \
   WIFI_PDF_API_KEY="$API_KEY" \
   ZOHO_WORKDRIVE_CLIENT_ID="${ZOHO_WORKDRIVE_CLIENT_ID:-}" \
@@ -397,10 +446,6 @@ write_paths_file() {
 report_secret_follow_up() {
   local missing=()
 
-  if [[ -z "${API_KEY:-}" ]]; then
-    missing+=("WIFI_PDF_API_KEY")
-  fi
-
   if [[ "$ENABLE_WORKDRIVE" == "true" ]]; then
     [[ -z "${ZOHO_WORKDRIVE_CLIENT_ID:-}" ]] && missing+=("ZOHO_WORKDRIVE_CLIENT_ID")
     [[ -z "${ZOHO_WORKDRIVE_CLIENT_SECRET:-}" ]] && missing+=("ZOHO_WORKDRIVE_CLIENT_SECRET")
@@ -417,6 +462,19 @@ report_secret_follow_up() {
   else
     log "Secrets file is populated: ${ENV_FILE}"
   fi
+
+  case "$API_KEY_SOURCE" in
+    generated)
+      log "Generated webhook API key. Copy this value now:"
+      printf '%s\n' "$GENERATED_API_KEY"
+      ;;
+    existing)
+      log "Existing webhook API key preserved in ${ENV_FILE}"
+      ;;
+    provided)
+      log "Webhook API key stored from installer input in ${ENV_FILE}"
+      ;;
+  esac
 }
 
 write_service_file() {
@@ -512,7 +570,6 @@ main() {
   initialize_context
 
   prompt HOST "Public hostname for shared Caddy/HTTPS" false "$HOST"
-  prompt API_KEY "Webhook API key" true "$(generate_secret)"
   if [[ -z "${ENABLE_WORKDRIVE}" ]]; then
     ENABLE_WORKDRIVE="true"
   fi
@@ -533,6 +590,7 @@ main() {
   ensure_packages
   ensure_user_and_dirs
   migrate_legacy_layout
+  prepare_api_key
   select_service_port "$PORT"
   sync_repo
   install_python_deps

@@ -51,6 +51,8 @@ The installer:
 - writes or updates the shared Caddy host file at `/etc/caddy/conf.d/webhooks.caddy`
 - writes its own route snippet at `/etc/caddy/conf.d/webhooks.routes/password-pdf-generator.caddy`
 - uses port `8000` by default, or the next free local port if `8000` is already in use
+- generates `WIFI_PDF_API_KEY` automatically if missing and prints it once so you can copy it
+- preserves the existing `WIFI_PDF_API_KEY` on later installs or updates unless you explicitly pass a new one
 
 ## Update
 
