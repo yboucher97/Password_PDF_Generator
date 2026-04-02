@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from .utils import ensure_directory
+
+
+LOG_DIR_ENV = "WIFI_PDF_LOG_DIR"
+
+
+def resolve_log_dir(default_log_dir: Path) -> Path:
+    configured = os.getenv(LOG_DIR_ENV)
+    if not configured:
+        return default_log_dir
+    return Path(configured).expanduser()
 
 
 def configure_logging(log_dir: Path, log_level: str = "INFO") -> logging.Logger:

@@ -9,14 +9,14 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from .config import load_settings
 from .exceptions import ConfigurationError, PayloadValidationError, RenderingError, WorkDriveError
 from .jobs import JobStore
-from .logging_utils import configure_logging
+from .logging_utils import configure_logging, resolve_log_dir
 from .pipeline import WifiPdfPipeline
 from .utils import batch_timestamp, relative_to_root, sanitize_filename
 from .models import parse_payload
 
 
 settings = load_settings()
-logger = configure_logging(settings.output.root_dir / "logs")
+logger = configure_logging(resolve_log_dir(settings.output.root_dir / "logs"))
 job_store = JobStore(settings.output.root_dir / "jobs", logger)
 
 
@@ -66,6 +66,7 @@ def _run_job(job_id: str, payload) -> None:
 
 
 @app.get("/health")
+@app.get("/pdf/health")
 async def health() -> dict[str, str]:
     return {
         "status": "ok",
@@ -75,6 +76,7 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/jobs/{job_id}")
+@app.get("/pdf/jobs/{job_id}")
 async def get_job(job_id: str) -> dict:
     job = job_store.get(job_id)
     if job is None:
@@ -83,6 +85,7 @@ async def get_job(job_id: str) -> dict:
 
 
 @app.post("/webhooks/zoho/wifi-pdfs")
+@app.post("/pdf/webhooks/zoho/wifi-pdfs")
 async def create_wifi_pdfs(
     request: Request,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),

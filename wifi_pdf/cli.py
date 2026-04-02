@@ -4,7 +4,7 @@ import argparse
 import json
 
 from .config import load_settings
-from .logging_utils import configure_logging
+from .logging_utils import configure_logging, resolve_log_dir
 from .pipeline import WifiPdfPipeline
 from .utils import load_json_file
 
@@ -32,7 +32,7 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = load_settings(args.config)
-    logger = configure_logging(settings.output.root_dir / "logs", args.log_level)
+    logger = configure_logging(resolve_log_dir(settings.output.root_dir / "logs"), args.log_level)
     pipeline = WifiPdfPipeline(settings, logger)
 
     payload = load_json_file(args.input)

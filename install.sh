@@ -4,11 +4,14 @@ set -euo pipefail
 APP_NAME="password-pdf-generator"
 SERVICE_NAME="${PASSWORD_PDF_SERVICE_NAME:-password-pdf-generator}"
 SERVICE_USER="${PASSWORD_PDF_SERVICE_USER:-passwordpdf}"
-INSTALL_DIR="${PASSWORD_PDF_INSTALL_DIR:-/opt/password-pdf-generator}"
-DATA_DIR="${PASSWORD_PDF_DATA_DIR:-/var/lib/password-pdf-generator}"
-CONFIG_DIR="${PASSWORD_PDF_CONFIG_DIR:-/etc/password-pdf-generator}"
-CONFIG_PATH="${CONFIG_DIR}/brand_settings.json"
-ENV_FILE="${PASSWORD_PDF_ENV_FILE:-/etc/password-pdf-generator.env}"
+SERVICE_ROOT="${PASSWORD_PDF_SERVICE_ROOT:-/opt/services/${APP_NAME}}"
+APP_DIR="${PASSWORD_PDF_APP_DIR:-${SERVICE_ROOT}/app}"
+VENV_DIR="${PASSWORD_PDF_VENV_DIR:-${SERVICE_ROOT}/.venv}"
+CONFIG_DIR="${PASSWORD_PDF_CONFIG_DIR:-${SERVICE_ROOT}/config}"
+DATA_DIR="${PASSWORD_PDF_DATA_DIR:-${SERVICE_ROOT}/data}"
+LOG_DIR="${PASSWORD_PDF_LOG_DIR:-${SERVICE_ROOT}/logs}"
+CONFIG_PATH="${PASSWORD_PDF_CONFIG_PATH:-${CONFIG_DIR}/brand_settings.json}"
+ENV_FILE="${PASSWORD_PDF_ENV_FILE:-${CONFIG_DIR}/${APP_NAME}.env}"
 META_FILE="${PASSWORD_PDF_META_FILE:-${CONFIG_DIR}/install-meta.env}"
 REPO_URL="${PASSWORD_PDF_REPO_URL:-https://github.com/yboucher97/Password_PDF_Generator.git}"
 REPO_REF="${PASSWORD_PDF_REPO_REF:-main}"
@@ -20,7 +23,13 @@ ZOHO_REGION="${PASSWORD_PDF_ZOHO_REGION:-com}"
 UFW_MODE="${PASSWORD_PDF_CONFIGURE_UFW:-auto}"
 INSTALL_OWNER="${PASSWORD_PDF_INSTALL_OWNER:-${SUDO_USER:-$(id -un)}}"
 INSTALL_OWNER_HOME="${PASSWORD_PDF_OWNER_HOME:-}"
-PATHS_FILE="${PASSWORD_PDF_PATHS_FILE:-}"
+PATHS_FILE="${PASSWORD_PDF_PATHS_FILE:-${CONFIG_DIR}/paths.txt}"
+CADDY_FILE="${PASSWORD_PDF_CADDY_FILE:-/etc/caddy/conf.d/webhooks.caddy}"
+QUOTE_GEO_PORT="${PASSWORD_PDF_QUOTE_GEO_PORT:-8050}"
+LEGACY_APP_DIR="${PASSWORD_PDF_LEGACY_APP_DIR:-/opt/password-pdf-generator}"
+LEGACY_DATA_DIR="${PASSWORD_PDF_LEGACY_DATA_DIR:-/var/lib/password-pdf-generator}"
+LEGACY_CONFIG_PATH="${PASSWORD_PDF_LEGACY_CONFIG_PATH:-/etc/password-pdf-generator/brand_settings.json}"
+LEGACY_ENV_FILE="${PASSWORD_PDF_LEGACY_ENV_FILE:-/etc/password-pdf-generator.env}"
 
 log() {
   printf '[%s] %s\n' "${APP_NAME}" "$*"
@@ -47,10 +56,6 @@ initialize_context() {
         INSTALL_OWNER_HOME="/home/${INSTALL_OWNER}"
       fi
     fi
-  fi
-
-  if [[ -z "$PATHS_FILE" ]]; then
-    PATHS_FILE="${INSTALL_OWNER_HOME}/${APP_NAME}-paths.txt"
   fi
 }
 
@@ -137,32 +142,52 @@ ensure_packages() {
 
 ensure_user_and_dirs() {
   if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
-    useradd --system --create-home --home "$DATA_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
+    useradd --system --create-home --home-dir "$SERVICE_ROOT" --shell /usr/sbin/nologin "$SERVICE_USER"
   fi
 
-  mkdir -p "$DATA_DIR" "$CONFIG_DIR"
-  chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
+  mkdir -p "$SERVICE_ROOT" "$CONFIG_DIR" "$DATA_DIR" "$LOG_DIR"
+  chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR" "$LOG_DIR"
+  chmod 755 "$SERVICE_ROOT" "$CONFIG_DIR" "$DATA_DIR" "$LOG_DIR"
+}
+
+migrate_legacy_layout() {
+  if [[ ! -f "$CONFIG_PATH" && -f "$LEGACY_CONFIG_PATH" ]]; then
+    log "Migrating legacy config from ${LEGACY_CONFIG_PATH}"
+    cp "$LEGACY_CONFIG_PATH" "$CONFIG_PATH"
+  fi
+
+  if [[ ! -f "$ENV_FILE" && -f "$LEGACY_ENV_FILE" ]]; then
+    log "Migrating legacy env file from ${LEGACY_ENV_FILE}"
+    cp "$LEGACY_ENV_FILE" "$ENV_FILE"
+  fi
+
+  if [[ -d "$LEGACY_DATA_DIR" ]] && [[ -z "$(find "$DATA_DIR" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
+    log "Migrating legacy data from ${LEGACY_DATA_DIR}"
+    cp -a "${LEGACY_DATA_DIR}/." "$DATA_DIR/"
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
+  fi
 }
 
 sync_repo() {
-  if [[ -d "${INSTALL_DIR}/.git" ]]; then
-    log "Updating existing repo in ${INSTALL_DIR}"
-    git config --global --add safe.directory "${INSTALL_DIR}"
-    git -C "$INSTALL_DIR" fetch --prune origin
-    git -C "$INSTALL_DIR" checkout "$REPO_REF"
-    git -C "$INSTALL_DIR" reset --hard "origin/${REPO_REF}"
+  mkdir -p "$(dirname "$APP_DIR")"
+  if [[ -d "${APP_DIR}/.git" ]]; then
+    log "Updating existing repo in ${APP_DIR}"
+    git config --global --add safe.directory "${APP_DIR}"
+    git -C "$APP_DIR" fetch --prune origin
+    git -C "$APP_DIR" checkout "$REPO_REF"
+    git -C "$APP_DIR" reset --hard "origin/${REPO_REF}"
   else
-    log "Cloning repo into ${INSTALL_DIR}"
-    rm -rf "$INSTALL_DIR"
-    git clone --branch "$REPO_REF" "$REPO_URL" "$INSTALL_DIR"
+    log "Cloning repo into ${APP_DIR}"
+    rm -rf "$APP_DIR"
+    git clone --branch "$REPO_REF" "$REPO_URL" "$APP_DIR"
   fi
 }
 
 install_python_deps() {
-  python3 -m venv "${INSTALL_DIR}/.venv"
-  "${INSTALL_DIR}/.venv/bin/pip" install --upgrade pip
-  "${INSTALL_DIR}/.venv/bin/pip" install -r "${INSTALL_DIR}/requirements.txt"
-  chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+  python3 -m venv "${VENV_DIR}"
+  "${VENV_DIR}/bin/pip" install --upgrade pip
+  "${VENV_DIR}/bin/pip" install -r "${APP_DIR}/requirements.txt"
+  chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR" "$VENV_DIR"
 }
 
 configure_runtime_json() {
@@ -197,7 +222,7 @@ configure_runtime_json() {
   esac
 
   if [[ ! -f "$CONFIG_PATH" ]]; then
-    cp "${INSTALL_DIR}/config/wifi_pdf/brand_settings.json" "$CONFIG_PATH"
+    cp "${APP_DIR}/config/wifi_pdf/brand_settings.json" "$CONFIG_PATH"
   fi
 
   DATA_OUTPUT_DIR="${DATA_DIR}/output/pdf/wifi" \
@@ -224,6 +249,7 @@ if os.environ["DEFAULT_WORKDRIVE_FOLDER_ID"]:
     data["workdrive"]["parent_folder_id"] = os.environ["DEFAULT_WORKDRIVE_FOLDER_ID"]
 config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 PY
+  chmod 644 "$CONFIG_PATH"
 }
 
 write_env_file() {
@@ -264,9 +290,9 @@ ordered_keys = [
 for key in ordered_keys:
     value = os.environ.get(key, "")
     if value:
-      existing[key] = value
+        existing[key] = value
     elif key not in existing and key == "WIFI_PDF_API_KEY":
-      existing[key] = value
+        existing[key] = value
 
 lines = []
 for key in ordered_keys:
@@ -286,15 +312,20 @@ write_install_metadata() {
     printf 'SERVICE_NAME=%q\n' "$SERVICE_NAME"
     printf 'SERVICE_USER=%q\n' "$SERVICE_USER"
     printf 'INSTALL_OWNER=%q\n' "$INSTALL_OWNER"
-    printf 'INSTALL_DIR=%q\n' "$INSTALL_DIR"
+    printf 'SERVICE_ROOT=%q\n' "$SERVICE_ROOT"
+    printf 'APP_DIR=%q\n' "$APP_DIR"
+    printf 'VENV_DIR=%q\n' "$VENV_DIR"
     printf 'DATA_DIR=%q\n' "$DATA_DIR"
+    printf 'LOG_DIR=%q\n' "$LOG_DIR"
     printf 'CONFIG_DIR=%q\n' "$CONFIG_DIR"
     printf 'CONFIG_PATH=%q\n' "$CONFIG_PATH"
     printf 'ENV_FILE=%q\n' "$ENV_FILE"
     printf 'META_FILE=%q\n' "$META_FILE"
     printf 'PATHS_FILE=%q\n' "$PATHS_FILE"
+    printf 'CADDY_FILE=%q\n' "$CADDY_FILE"
     printf 'HOST=%q\n' "$HOST"
     printf 'PORT=%q\n' "$PORT"
+    printf 'QUOTE_GEO_PORT=%q\n' "$QUOTE_GEO_PORT"
     printf 'REPO_REF=%q\n' "$REPO_REF"
   } >"$META_FILE"
   chmod 644 "$META_FILE"
@@ -303,18 +334,20 @@ write_install_metadata() {
 write_paths_file() {
   mkdir -p "$(dirname "$PATHS_FILE")"
   {
-    printf '%s  # application code\n' "$INSTALL_DIR"
-    printf '%s  # Python virtualenv\n' "${INSTALL_DIR}/.venv"
+    printf '%s  # service root\n' "$SERVICE_ROOT"
+    printf '%s  # application code\n' "$APP_DIR"
+    printf '%s  # Python virtualenv\n' "$VENV_DIR"
     printf '%s  # runtime config directory\n' "$CONFIG_DIR"
     printf '%s  # active JSON config\n' "$CONFIG_PATH"
     printf '%s  # secrets environment file\n' "$ENV_FILE"
     printf '%s  # systemd service file\n' "/etc/systemd/system/${SERVICE_NAME}.service"
-    printf '%s  # application data root\n' "$DATA_DIR"
-    printf '%s  # generated PDFs, manifests, QR images, and logs\n' "${DATA_DIR}/output/pdf/wifi"
-    printf '%s  # rotating application log file\n' "${DATA_DIR}/output/pdf/wifi/logs/wifi_pdf.log"
-    printf '%s  # local update script\n' "${INSTALL_DIR}/update.sh"
+    printf '%s  # service data root\n' "$DATA_DIR"
+    printf '%s  # generated PDFs, manifests, QR images, and jobs\n' "${DATA_DIR}/output/pdf/wifi"
+    printf '%s  # application logs\n' "$LOG_DIR"
+    printf '%s  # rotating application log file\n' "${LOG_DIR}/wifi_pdf.log"
+    printf '%s  # local update script\n' "${APP_DIR}/update.sh"
     if [[ -n "$HOST" ]]; then
-      printf '%s  # Caddy site config\n' "/etc/caddy/conf.d/${SERVICE_NAME}.caddy"
+      printf '%s  # shared Caddy site config\n' "$CADDY_FILE"
     fi
   } >"$PATHS_FILE"
 
@@ -358,11 +391,12 @@ After=network.target
 [Service]
 User=${SERVICE_USER}
 Group=${SERVICE_USER}
-WorkingDirectory=${INSTALL_DIR}
+WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
 Environment=WIFI_PDF_CONFIG_PATH=${CONFIG_PATH}
-Environment=PATH=${INSTALL_DIR}/.venv/bin
-ExecStart=${INSTALL_DIR}/.venv/bin/uvicorn wifi_pdf.api:app --host 127.0.0.1 --port ${PORT}
+Environment=WIFI_PDF_LOG_DIR=${LOG_DIR}
+Environment=PATH=${VENV_DIR}/bin
+ExecStart=${VENV_DIR}/bin/uvicorn wifi_pdf.api:app --host 127.0.0.1 --port ${PORT}
 Restart=always
 RestartSec=5
 
@@ -389,14 +423,36 @@ EOF
     printf '\nimport /etc/caddy/conf.d/*.caddy\n' >> /etc/caddy/Caddyfile
   fi
 
-  cat >"/etc/caddy/conf.d/${SERVICE_NAME}.caddy" <<EOF
+  cat >"$CADDY_FILE" <<EOF
 ${HOST} {
-    reverse_proxy 127.0.0.1:${PORT}
+    handle_path /quote-geolocation/* {
+        reverse_proxy 127.0.0.1:${QUOTE_GEO_PORT}
+    }
+
+    handle /health/quote-geolocation* {
+        reverse_proxy 127.0.0.1:${QUOTE_GEO_PORT}
+    }
+
+    handle /webhooks/quote-geolocation* {
+        reverse_proxy 127.0.0.1:${QUOTE_GEO_PORT}
+    }
+
+    handle /webhooks/zoho/quote-geolocation* {
+        reverse_proxy 127.0.0.1:${QUOTE_GEO_PORT}
+    }
+
+    handle_path /pdf/* {
+        reverse_proxy 127.0.0.1:${PORT}
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:${PORT}
+    }
 }
 EOF
 
   caddy fmt --overwrite /etc/caddy/Caddyfile >/dev/null
-  caddy fmt --overwrite "/etc/caddy/conf.d/${SERVICE_NAME}.caddy" >/dev/null
+  caddy fmt --overwrite "$CADDY_FILE" >/dev/null
   caddy validate --config /etc/caddy/Caddyfile
   systemctl enable --now caddy
   systemctl reload caddy
@@ -420,7 +476,7 @@ main() {
   require_root
   initialize_context
 
-  prompt HOST "Public hostname for Caddy/HTTPS" false "$HOST"
+  prompt HOST "Public hostname for shared Caddy/HTTPS" false "$HOST"
   prompt API_KEY "Webhook API key" true "$(generate_secret)"
   if [[ -z "${ENABLE_WORKDRIVE}" ]]; then
     ENABLE_WORKDRIVE="true"
@@ -441,6 +497,7 @@ main() {
 
   ensure_packages
   ensure_user_and_dirs
+  migrate_legacy_layout
   sync_repo
   install_python_deps
   configure_runtime_json
@@ -452,17 +509,18 @@ main() {
   write_paths_file
 
   log "Install complete."
-  log "Code directory: ${INSTALL_DIR}"
+  log "Service root: ${SERVICE_ROOT}"
+  log "Code directory: ${APP_DIR}"
+  log "Virtualenv: ${VENV_DIR}"
   log "Runtime config: ${CONFIG_PATH}"
   log "Secrets file: ${ENV_FILE}"
+  log "Logs: ${LOG_DIR}"
   log "Service: ${SERVICE_NAME}"
   log "Path inventory: ${PATHS_FILE}"
   report_secret_follow_up
-  if [[ -n "$HOST" ]]; then
-    log "Public health check: https://${HOST}/health"
-  else
-    log "Local health check: curl http://127.0.0.1:${PORT}/health"
-  fi
+  log "Public PDF health check: https://${HOST}/pdf/health"
+  log "Public PDF webhook: https://${HOST}/pdf/webhooks/zoho/wifi-pdfs"
+  log "Legacy PDF health check: https://${HOST}/health"
 }
 
 main "$@"

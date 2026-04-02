@@ -9,7 +9,7 @@ from typing import Any
 
 from .config import AppSettings, load_settings
 from .exceptions import WorkDriveError
-from .logging_utils import configure_logging
+from .logging_utils import configure_logging, resolve_log_dir
 from .merge import merge_pdfs
 from .models import WifiBatchRequest, parse_payload
 from .qr import build_wifi_qr_string, generate_qr_png
@@ -253,6 +253,6 @@ def process_payload(
     log_level: str = "INFO",
 ) -> BatchOutput:
     settings = load_settings(config_path)
-    logger = configure_logging(settings.output.root_dir / "logs", log_level)
+    logger = configure_logging(resolve_log_dir(settings.output.root_dir / "logs"), log_level)
     pipeline = WifiPdfPipeline(settings, logger)
     return pipeline.process_payload(payload)
