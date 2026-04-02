@@ -54,6 +54,8 @@ The installer:
 - generates `WIFI_PDF_API_KEY` automatically if missing and prints it once so you can copy it
 - preserves the existing `WIFI_PDF_API_KEY` on later installs or updates unless you explicitly pass a new one
 - writes the expected WorkDrive env keys even when they are still blank, so you can fill them in directly
+- expects the webhook payload to provide `workdrive_folder_id` for WorkDrive uploads
+- uses refresh-token OAuth only for Zoho auth
 
 ## Update
 
@@ -117,7 +119,6 @@ Public paths through the shared Caddy site:
 - `ZOHO_WORKDRIVE_CLIENT_ID`
 - `ZOHO_WORKDRIVE_CLIENT_SECRET`
 - `ZOHO_WORKDRIVE_REFRESH_TOKEN`
-- `ZOHO_WORKDRIVE_PARENT_FOLDER_ID`
 
 ## Logs And Data
 
@@ -141,6 +142,17 @@ If you add a third webhook app later, the same pattern should be reused:
 - one per-app Caddy route snippet under `/etc/caddy/conf.d/webhooks.routes`
 
 Each installer should choose its own local port, then add only its own route snippet. That keeps the repos separate and avoids one app overwriting another app's reverse-proxy config.
+
+## WorkDrive Behavior
+
+When WorkDrive upload is enabled:
+
+- the webhook payload must include `workdrive_folder_id`
+- that ID is treated as the parent folder
+- the app searches inside that parent for the child folder named `Document locataire`
+- the app uploads into that child folder
+
+The app no longer uses a default parent folder ID from env or config.
 
 ## Docs
 

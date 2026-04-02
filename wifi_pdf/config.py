@@ -71,7 +71,6 @@ class WorkDriveSettings:
     enabled: bool
     api_base_url: str
     accounts_base_url: str
-    parent_folder_id: str | None
     target_folder_name: str
     overwrite_existing_files: bool
     cleanup_local_after_upload: bool
@@ -161,7 +160,6 @@ def load_settings(config_path: str | Path | None = None) -> AppSettings:
             enabled=bool(workdrive["enabled"]),
             api_base_url=str(workdrive["api_base_url"]).rstrip("/"),
             accounts_base_url=str(workdrive["accounts_base_url"]).rstrip("/"),
-            parent_folder_id=workdrive.get("parent_folder_id"),
             target_folder_name=str(workdrive.get("target_folder_name", "Document locataire")).strip(),
             overwrite_existing_files=bool(workdrive.get("overwrite_existing_files", True)),
             cleanup_local_after_upload=bool(workdrive["cleanup_local_after_upload"]),

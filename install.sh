@@ -319,7 +319,6 @@ configure_runtime_json() {
   WORKDRIVE_API_BASE="$workdrive_api_base" \
   WORKDRIVE_ACCOUNTS_BASE="$workdrive_accounts_base" \
   CRM_API_BASE="$crm_api_base" \
-  DEFAULT_WORKDRIVE_FOLDER_ID="${ZOHO_WORKDRIVE_PARENT_FOLDER_ID:-}" \
   python3 - <<'PY'
 import json
 import os
@@ -333,8 +332,7 @@ data["workdrive"]["api_base_url"] = os.environ["WORKDRIVE_API_BASE"]
 data["workdrive"]["accounts_base_url"] = os.environ["WORKDRIVE_ACCOUNTS_BASE"]
 data.setdefault("crm", {})
 data["crm"]["api_base_url"] = os.environ["CRM_API_BASE"]
-if os.environ["DEFAULT_WORKDRIVE_FOLDER_ID"]:
-    data["workdrive"]["parent_folder_id"] = os.environ["DEFAULT_WORKDRIVE_FOLDER_ID"]
+data["workdrive"].pop("parent_folder_id", None)
 config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 PY
   chmod 644 "$CONFIG_PATH"
@@ -346,8 +344,6 @@ write_env_file() {
   ZOHO_WORKDRIVE_CLIENT_ID="${ZOHO_WORKDRIVE_CLIENT_ID:-}" \
   ZOHO_WORKDRIVE_CLIENT_SECRET="${ZOHO_WORKDRIVE_CLIENT_SECRET:-}" \
   ZOHO_WORKDRIVE_REFRESH_TOKEN="${ZOHO_WORKDRIVE_REFRESH_TOKEN:-}" \
-  ZOHO_WORKDRIVE_ACCESS_TOKEN="${ZOHO_WORKDRIVE_ACCESS_TOKEN:-}" \
-  ZOHO_WORKDRIVE_PARENT_FOLDER_ID="${ZOHO_WORKDRIVE_PARENT_FOLDER_ID:-}" \
   python3 - <<'PY'
 import os
 from pathlib import Path
@@ -367,8 +363,6 @@ ordered_keys = [
     "ZOHO_WORKDRIVE_CLIENT_ID",
     "ZOHO_WORKDRIVE_CLIENT_SECRET",
     "ZOHO_WORKDRIVE_REFRESH_TOKEN",
-    "ZOHO_WORKDRIVE_ACCESS_TOKEN",
-    "ZOHO_WORKDRIVE_PARENT_FOLDER_ID",
 ]
 
 for key in ordered_keys:
@@ -583,7 +577,6 @@ main() {
     prompt ZOHO_WORKDRIVE_CLIENT_ID "Zoho WorkDrive client id"
     prompt ZOHO_WORKDRIVE_CLIENT_SECRET "Zoho WorkDrive client secret" true
     prompt ZOHO_WORKDRIVE_REFRESH_TOKEN "Zoho WorkDrive refresh token" true
-    prompt ZOHO_WORKDRIVE_PARENT_FOLDER_ID "Default WorkDrive folder id (optional)"
   fi
 
   ensure_packages

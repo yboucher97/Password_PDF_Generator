@@ -68,18 +68,13 @@ class ZohoCrmClient:
         if self._access_token:
             return self._access_token
 
-        direct_token = os.getenv("ZOHO_WORKDRIVE_ACCESS_TOKEN")
-        if direct_token:
-            self._access_token = direct_token
-            return direct_token
-
         refresh_token = os.getenv("ZOHO_WORKDRIVE_REFRESH_TOKEN")
         client_id = os.getenv("ZOHO_WORKDRIVE_CLIENT_ID")
         client_secret = os.getenv("ZOHO_WORKDRIVE_CLIENT_SECRET")
         if not refresh_token or not client_id or not client_secret:
             raise ConfigurationError(
-                "Missing Zoho OAuth environment variables. Set ZOHO_WORKDRIVE_ACCESS_TOKEN "
-                "or provide ZOHO_WORKDRIVE_REFRESH_TOKEN, ZOHO_WORKDRIVE_CLIENT_ID, and "
+                "Missing Zoho OAuth environment variables. Provide "
+                "ZOHO_WORKDRIVE_REFRESH_TOKEN, ZOHO_WORKDRIVE_CLIENT_ID, and "
                 "ZOHO_WORKDRIVE_CLIENT_SECRET."
             )
 

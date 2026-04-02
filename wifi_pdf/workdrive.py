@@ -19,15 +19,11 @@ class ZohoWorkDriveClient:
         self._access_token: str | None = None
 
     def resolve_folder_id(self, request_folder_id: str | None) -> str:
-        folder_id = (
-            request_folder_id
-            or os.getenv("ZOHO_WORKDRIVE_PARENT_FOLDER_ID")
-            or self.settings.parent_folder_id
-        )
+        folder_id = request_folder_id
         if not folder_id:
             raise ConfigurationError(
                 "WorkDrive upload is enabled but no folder id was provided. "
-                "Send workdrive_folder_id in JSON or set ZOHO_WORKDRIVE_PARENT_FOLDER_ID."
+                "Send workdrive_folder_id in the webhook JSON."
             )
         return folder_id
 
@@ -60,18 +56,13 @@ class ZohoWorkDriveClient:
         if self._access_token:
             return self._access_token
 
-        direct_token = os.getenv("ZOHO_WORKDRIVE_ACCESS_TOKEN")
-        if direct_token:
-            self._access_token = direct_token
-            return direct_token
-
         refresh_token = os.getenv("ZOHO_WORKDRIVE_REFRESH_TOKEN")
         client_id = os.getenv("ZOHO_WORKDRIVE_CLIENT_ID")
         client_secret = os.getenv("ZOHO_WORKDRIVE_CLIENT_SECRET")
         if not refresh_token or not client_id or not client_secret:
             raise ConfigurationError(
-                "Missing Zoho OAuth environment variables. Set ZOHO_WORKDRIVE_ACCESS_TOKEN "
-                "or provide ZOHO_WORKDRIVE_REFRESH_TOKEN, ZOHO_WORKDRIVE_CLIENT_ID, and "
+                "Missing Zoho OAuth environment variables. Provide "
+                "ZOHO_WORKDRIVE_REFRESH_TOKEN, ZOHO_WORKDRIVE_CLIENT_ID, and "
                 "ZOHO_WORKDRIVE_CLIENT_SECRET."
             )
 
