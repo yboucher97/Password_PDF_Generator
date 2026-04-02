@@ -83,12 +83,12 @@ The PDF route snippet exposes:
 
 So the preferred public paths are:
 
-- PDF health: `https://pdf.wifiplex.ca/pdf/health`
-- PDF webhook: `https://pdf.wifiplex.ca/pdf/webhooks/zoho/wifi-pdfs`
+- PDF health: `https://api01.wifiplex.ca/pdf/health`
+- PDF webhook: `https://api01.wifiplex.ca/pdf/webhooks/zoho/wifi-pdfs`
 
 The older direct PDF webhook path still works:
 
-- `https://pdf.wifiplex.ca/webhooks/zoho/wifi-pdfs`
+- `https://api01.wifiplex.ca/webhooks/zoho/wifi-pdfs`
 
 ## Runtime
 
