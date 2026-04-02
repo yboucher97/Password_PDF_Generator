@@ -25,6 +25,8 @@ After install, the important paths are:
 /opt/services/password-pdf-generator/logs/
 /etc/systemd/system/password-pdf-generator.service
 /etc/caddy/conf.d/webhooks.caddy
+/etc/caddy/conf.d/webhooks.routes/
+/etc/caddy/conf.d/webhooks.routes/password-pdf-generator.caddy
 ```
 
 The PDF app keeps its own code, venv, config, data, and logs together under one folder.
@@ -46,7 +48,9 @@ The installer:
 - stores generated files in `/opt/services/password-pdf-generator/data`
 - stores logs in `/opt/services/password-pdf-generator/logs`
 - creates `password-pdf-generator.service`
-- writes the shared Caddy file at `/etc/caddy/conf.d/webhooks.caddy`
+- writes or updates the shared Caddy host file at `/etc/caddy/conf.d/webhooks.caddy`
+- writes its own route snippet at `/etc/caddy/conf.d/webhooks.routes/password-pdf-generator.caddy`
+- uses port `8000` by default, or the next free local port if `8000` is already in use
 
 ## Update
 
@@ -62,18 +66,27 @@ That keeps the same paths, refreshes the repo, rebuilds the venv, reapplies the 
 
 This installer now assumes the PDF webhook and the quote geolocation webhook live on the same VM and same hostname.
 
-The shared Caddy file routes:
+The shared Caddy host file imports every per-app route snippet from:
+
+```text
+/etc/caddy/conf.d/webhooks.routes/*.caddy
+```
+
+This service contributes only its own route snippet. It does not need to know how the quote geolocation app is installed.
+
+The PDF route snippet exposes:
 
 - `/pdf/*` to the PDF service on `127.0.0.1:8000`
-- `/quote-geolocation/*` to the quote geolocation service on `127.0.0.1:8050`
-- everything else to the PDF service for backward compatibility
+- `/webhooks/zoho/wifi-pdfs*` to the PDF service on `127.0.0.1:8000`
 
 So the preferred public paths are:
 
 - PDF health: `https://pdf.wifiplex.ca/pdf/health`
 - PDF webhook: `https://pdf.wifiplex.ca/pdf/webhooks/zoho/wifi-pdfs`
 
-The older direct PDF paths still work because Caddy falls back to the PDF service.
+The older direct PDF webhook path still works:
+
+- `https://pdf.wifiplex.ca/webhooks/zoho/wifi-pdfs`
 
 ## Runtime
 
@@ -95,7 +108,9 @@ Public paths through the shared Caddy site:
 - `PASSWORD_PDF_ENABLE_WORKDRIVE`
 - `PASSWORD_PDF_ZOHO_REGION`
 - `PASSWORD_PDF_PORT`
-- `PASSWORD_PDF_QUOTE_GEO_PORT`
+- `PASSWORD_PDF_CADDY_FILE`
+- `PASSWORD_PDF_CADDY_ROUTES_DIR`
+- `PASSWORD_PDF_CADDY_ROUTE_FILE`
 - `ZOHO_WORKDRIVE_CLIENT_ID`
 - `ZOHO_WORKDRIVE_CLIENT_SECRET`
 - `ZOHO_WORKDRIVE_REFRESH_TOKEN`
@@ -109,6 +124,20 @@ Public paths through the shared Caddy site:
   `/opt/services/password-pdf-generator/logs`
 - main rotating log file:
   `/opt/services/password-pdf-generator/logs/wifi_pdf.log`
+
+## Future Apps
+
+If you add a third webhook app later, the same pattern should be reused:
+
+- `/opt/services/<app-name>/app`
+- `/opt/services/<app-name>/.venv`
+- `/opt/services/<app-name>/config`
+- `/opt/services/<app-name>/data`
+- `/opt/services/<app-name>/logs`
+- one systemd unit under `/etc/systemd/system`
+- one per-app Caddy route snippet under `/etc/caddy/conf.d/webhooks.routes`
+
+Each installer should choose its own local port, then add only its own route snippet. That keeps the repos separate and avoids one app overwriting another app's reverse-proxy config.
 
 ## Docs
 

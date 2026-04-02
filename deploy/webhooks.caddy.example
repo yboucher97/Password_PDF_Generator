@@ -1,25 +1,3 @@
 pdf.wifiplex.ca {
-    handle_path /quote-geolocation/* {
-        reverse_proxy 127.0.0.1:8050
-    }
-
-    handle /health/quote-geolocation* {
-        reverse_proxy 127.0.0.1:8050
-    }
-
-    handle /webhooks/quote-geolocation* {
-        reverse_proxy 127.0.0.1:8050
-    }
-
-    handle /webhooks/zoho/quote-geolocation* {
-        reverse_proxy 127.0.0.1:8050
-    }
-
-    handle_path /pdf/* {
-        reverse_proxy 127.0.0.1:8000
-    }
-
-    handle {
-        reverse_proxy 127.0.0.1:8000
-    }
+    import /etc/caddy/conf.d/webhooks.routes/*.caddy
 }

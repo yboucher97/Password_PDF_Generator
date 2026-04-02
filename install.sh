@@ -2,21 +2,21 @@
 set -euo pipefail
 
 APP_NAME="password-pdf-generator"
-SERVICE_NAME="${PASSWORD_PDF_SERVICE_NAME:-password-pdf-generator}"
-SERVICE_USER="${PASSWORD_PDF_SERVICE_USER:-passwordpdf}"
-SERVICE_ROOT="${PASSWORD_PDF_SERVICE_ROOT:-/opt/services/${APP_NAME}}"
-APP_DIR="${PASSWORD_PDF_APP_DIR:-${SERVICE_ROOT}/app}"
-VENV_DIR="${PASSWORD_PDF_VENV_DIR:-${SERVICE_ROOT}/.venv}"
-CONFIG_DIR="${PASSWORD_PDF_CONFIG_DIR:-${SERVICE_ROOT}/config}"
-DATA_DIR="${PASSWORD_PDF_DATA_DIR:-${SERVICE_ROOT}/data}"
-LOG_DIR="${PASSWORD_PDF_LOG_DIR:-${SERVICE_ROOT}/logs}"
-CONFIG_PATH="${PASSWORD_PDF_CONFIG_PATH:-${CONFIG_DIR}/brand_settings.json}"
-ENV_FILE="${PASSWORD_PDF_ENV_FILE:-${CONFIG_DIR}/${APP_NAME}.env}"
-META_FILE="${PASSWORD_PDF_META_FILE:-${CONFIG_DIR}/install-meta.env}"
-REPO_URL="${PASSWORD_PDF_REPO_URL:-https://github.com/yboucher97/Password_PDF_Generator.git}"
-REPO_REF="${PASSWORD_PDF_REPO_REF:-main}"
-PORT="${PASSWORD_PDF_PORT:-8000}"
-HOST="${PASSWORD_PDF_HOST:-}"
+SERVICE_NAME="${PASSWORD_PDF_SERVICE_NAME:-${SERVICE_NAME:-password-pdf-generator}}"
+SERVICE_USER="${PASSWORD_PDF_SERVICE_USER:-${SERVICE_USER:-passwordpdf}}"
+SERVICE_ROOT="${PASSWORD_PDF_SERVICE_ROOT:-${SERVICE_ROOT:-/opt/services/${APP_NAME}}}"
+APP_DIR="${PASSWORD_PDF_APP_DIR:-${APP_DIR:-${SERVICE_ROOT}/app}}"
+VENV_DIR="${PASSWORD_PDF_VENV_DIR:-${VENV_DIR:-${SERVICE_ROOT}/.venv}}"
+CONFIG_DIR="${PASSWORD_PDF_CONFIG_DIR:-${CONFIG_DIR:-${SERVICE_ROOT}/config}}"
+DATA_DIR="${PASSWORD_PDF_DATA_DIR:-${DATA_DIR:-${SERVICE_ROOT}/data}}"
+LOG_DIR="${PASSWORD_PDF_LOG_DIR:-${LOG_DIR:-${SERVICE_ROOT}/logs}}"
+CONFIG_PATH="${PASSWORD_PDF_CONFIG_PATH:-${CONFIG_PATH:-${CONFIG_DIR}/brand_settings.json}}"
+ENV_FILE="${PASSWORD_PDF_ENV_FILE:-${ENV_FILE:-${CONFIG_DIR}/${APP_NAME}.env}}"
+META_FILE="${PASSWORD_PDF_META_FILE:-${META_FILE:-${CONFIG_DIR}/install-meta.env}}"
+REPO_URL="${PASSWORD_PDF_REPO_URL:-${REPO_URL:-https://github.com/yboucher97/Password_PDF_Generator.git}}"
+REPO_REF="${PASSWORD_PDF_REPO_REF:-${REPO_REF:-main}}"
+PORT="${PASSWORD_PDF_PORT:-${PORT:-8000}}"
+HOST="${PASSWORD_PDF_HOST:-${HOST:-}}"
 API_KEY="${PASSWORD_PDF_API_KEY:-${WIFI_PDF_API_KEY:-}}"
 ENABLE_WORKDRIVE="${PASSWORD_PDF_ENABLE_WORKDRIVE:-}"
 ZOHO_REGION="${PASSWORD_PDF_ZOHO_REGION:-com}"
@@ -24,8 +24,9 @@ UFW_MODE="${PASSWORD_PDF_CONFIGURE_UFW:-auto}"
 INSTALL_OWNER="${PASSWORD_PDF_INSTALL_OWNER:-${SUDO_USER:-$(id -un)}}"
 INSTALL_OWNER_HOME="${PASSWORD_PDF_OWNER_HOME:-}"
 PATHS_FILE="${PASSWORD_PDF_PATHS_FILE:-${CONFIG_DIR}/paths.txt}"
-CADDY_FILE="${PASSWORD_PDF_CADDY_FILE:-/etc/caddy/conf.d/webhooks.caddy}"
-QUOTE_GEO_PORT="${PASSWORD_PDF_QUOTE_GEO_PORT:-8050}"
+CADDY_FILE="${PASSWORD_PDF_CADDY_FILE:-${CADDY_FILE:-/etc/caddy/conf.d/webhooks.caddy}}"
+CADDY_ROUTES_DIR="${PASSWORD_PDF_CADDY_ROUTES_DIR:-${CADDY_ROUTES_DIR:-/etc/caddy/conf.d/webhooks.routes}}"
+CADDY_ROUTE_FILE="${PASSWORD_PDF_CADDY_ROUTE_FILE:-${CADDY_ROUTE_FILE:-${CADDY_ROUTES_DIR}/${SERVICE_NAME}.caddy}}"
 LEGACY_APP_DIR="${PASSWORD_PDF_LEGACY_APP_DIR:-/opt/password-pdf-generator}"
 LEGACY_DATA_DIR="${PASSWORD_PDF_LEGACY_DATA_DIR:-/var/lib/password-pdf-generator}"
 LEGACY_CONFIG_PATH="${PASSWORD_PDF_LEGACY_CONFIG_PATH:-/etc/password-pdf-generator/brand_settings.json}"
@@ -148,6 +149,40 @@ ensure_user_and_dirs() {
   mkdir -p "$SERVICE_ROOT" "$CONFIG_DIR" "$DATA_DIR" "$LOG_DIR"
   chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR" "$LOG_DIR"
   chmod 755 "$SERVICE_ROOT" "$CONFIG_DIR" "$DATA_DIR" "$LOG_DIR"
+}
+
+port_in_use() {
+  local port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnH "( sport = :${port} )" 2>/dev/null | grep -q .
+    return
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+    return
+  fi
+  return 1
+}
+
+select_service_port() {
+  local preferred_port="$1"
+  local service_file="/etc/systemd/system/${SERVICE_NAME}.service"
+  local chosen_port="$preferred_port"
+
+  if [[ -f "$service_file" ]] && grep -Fq -- "--port ${preferred_port}" "$service_file"; then
+    PORT="$preferred_port"
+    return
+  fi
+
+  while port_in_use "$chosen_port"; do
+    chosen_port="$((chosen_port + 1))"
+  done
+
+  if [[ "$chosen_port" != "$preferred_port" ]]; then
+    log "Port ${preferred_port} is already in use. Using ${chosen_port} instead."
+  fi
+
+  PORT="$chosen_port"
 }
 
 migrate_legacy_layout() {
@@ -323,9 +358,10 @@ write_install_metadata() {
     printf 'META_FILE=%q\n' "$META_FILE"
     printf 'PATHS_FILE=%q\n' "$PATHS_FILE"
     printf 'CADDY_FILE=%q\n' "$CADDY_FILE"
+    printf 'CADDY_ROUTES_DIR=%q\n' "$CADDY_ROUTES_DIR"
+    printf 'CADDY_ROUTE_FILE=%q\n' "$CADDY_ROUTE_FILE"
     printf 'HOST=%q\n' "$HOST"
     printf 'PORT=%q\n' "$PORT"
-    printf 'QUOTE_GEO_PORT=%q\n' "$QUOTE_GEO_PORT"
     printf 'REPO_REF=%q\n' "$REPO_REF"
   } >"$META_FILE"
   chmod 644 "$META_FILE"
@@ -348,6 +384,8 @@ write_paths_file() {
     printf '%s  # local update script\n' "${APP_DIR}/update.sh"
     if [[ -n "$HOST" ]]; then
       printf '%s  # shared Caddy site config\n' "$CADDY_FILE"
+      printf '%s  # per-app Caddy route snippets\n' "$CADDY_ROUTES_DIR"
+      printf '%s  # this service Caddy route snippet\n' "$CADDY_ROUTE_FILE"
     fi
   } >"$PATHS_FILE"
 
@@ -414,7 +452,7 @@ configure_caddy() {
     return
   fi
 
-  mkdir -p /etc/caddy/conf.d
+  mkdir -p /etc/caddy/conf.d "$CADDY_ROUTES_DIR"
   if [[ ! -f /etc/caddy/Caddyfile ]] || grep -Fq '/usr/share/caddy' /etc/caddy/Caddyfile; then
     cat >/etc/caddy/Caddyfile <<'EOF'
 import /etc/caddy/conf.d/*.caddy
@@ -423,36 +461,33 @@ EOF
     printf '\nimport /etc/caddy/conf.d/*.caddy\n' >> /etc/caddy/Caddyfile
   fi
 
+  if [[ -f "$CADDY_FILE" ]]; then
+    local existing_host
+    existing_host="$(sed -n '1s/[[:space:]]*{[[:space:]]*$//p' "$CADDY_FILE" | head -n1)"
+    if [[ -n "$existing_host" && "$existing_host" != "$HOST" ]]; then
+      fail "Caddy host file ${CADDY_FILE} already targets '${existing_host}'. Reuse that hostname or update the file manually."
+    fi
+  fi
+
   cat >"$CADDY_FILE" <<EOF
 ${HOST} {
-    handle_path /quote-geolocation/* {
-        reverse_proxy 127.0.0.1:${QUOTE_GEO_PORT}
-    }
+    import ${CADDY_ROUTES_DIR}/*.caddy
+}
+EOF
 
-    handle /health/quote-geolocation* {
-        reverse_proxy 127.0.0.1:${QUOTE_GEO_PORT}
-    }
+  cat >"$CADDY_ROUTE_FILE" <<EOF
+handle_path /pdf/* {
+    reverse_proxy 127.0.0.1:${PORT}
+}
 
-    handle /webhooks/quote-geolocation* {
-        reverse_proxy 127.0.0.1:${QUOTE_GEO_PORT}
-    }
-
-    handle /webhooks/zoho/quote-geolocation* {
-        reverse_proxy 127.0.0.1:${QUOTE_GEO_PORT}
-    }
-
-    handle_path /pdf/* {
-        reverse_proxy 127.0.0.1:${PORT}
-    }
-
-    handle {
-        reverse_proxy 127.0.0.1:${PORT}
-    }
+handle /webhooks/zoho/wifi-pdfs* {
+    reverse_proxy 127.0.0.1:${PORT}
 }
 EOF
 
   caddy fmt --overwrite /etc/caddy/Caddyfile >/dev/null
   caddy fmt --overwrite "$CADDY_FILE" >/dev/null
+  caddy fmt --overwrite "$CADDY_ROUTE_FILE" >/dev/null
   caddy validate --config /etc/caddy/Caddyfile
   systemctl enable --now caddy
   systemctl reload caddy
@@ -498,6 +533,7 @@ main() {
   ensure_packages
   ensure_user_and_dirs
   migrate_legacy_layout
+  select_service_port "$PORT"
   sync_repo
   install_python_deps
   configure_runtime_json
@@ -520,7 +556,7 @@ main() {
   report_secret_follow_up
   log "Public PDF health check: https://${HOST}/pdf/health"
   log "Public PDF webhook: https://${HOST}/pdf/webhooks/zoho/wifi-pdfs"
-  log "Legacy PDF health check: https://${HOST}/health"
+  log "Legacy PDF webhook path still routed: https://${HOST}/webhooks/zoho/wifi-pdfs"
 }
 
 main "$@"
