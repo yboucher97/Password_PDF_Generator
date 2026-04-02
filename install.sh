@@ -380,8 +380,7 @@ for key in ordered_keys:
 
 lines = []
 for key in ordered_keys:
-    if key in existing:
-        lines.append(f"{key}={existing[key]}")
+    lines.append(f"{key}={existing.get(key, '')}")
 
 path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
